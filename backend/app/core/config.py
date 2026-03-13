@@ -22,6 +22,14 @@ def get_env(name: str, default: str | None = None) -> str | None:
     return value
 
 
+def get_csv_env(name: str, default: list[str] | None = None) -> list[str]:
+    raw = get_env(name)
+    if raw is None:
+        return default or []
+    values = [item.strip() for item in raw.split(",") if item.strip()]
+    return values if values else (default or [])
+
+
 class Settings:
     groq_api_key: str | None = get_env("GROQ_API_KEY")
     groq_model: str = get_env("GROQ_MODEL", "llama-3.3-70b-versatile") or "llama-3.3-70b-versatile"
@@ -39,6 +47,12 @@ class Settings:
     stable_window_s: float = float(get_env("STABLE_WINDOW_S", "0.5") or "0.5")
     stable_delta_threshold: float = float(get_env("STABLE_DELTA_THRESHOLD", "3.0") or "3.0")
     significant_delta_threshold: float = float(get_env("SIGNIFICANT_DELTA_THRESHOLD", "8.0") or "8.0")
+
+    # CORS
+    cors_origins: list[str] = get_csv_env(
+        "CORS_ORIGINS",
+        ["http://localhost:5173", "http://127.0.0.1:5173"],
+    )
 
 
 settings = Settings()

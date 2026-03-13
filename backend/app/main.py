@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.core.config import settings
 from app.models.contracts import EvaluateRequest, GeminiAlignmentResponse
 from app.services.evaluator import AlignmentEvaluator
 
@@ -88,13 +89,12 @@ def list_train_poses() -> dict[str, object]:
 
     return {"poses": poses_payload}
 
-# POC: allow local dev frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
 evaluator = AlignmentEvaluator()
