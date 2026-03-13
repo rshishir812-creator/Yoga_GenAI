@@ -446,8 +446,15 @@ export default function App() {
   // ── Resolve first media src for the selected pose (for overlays) ─────────
   const poseMediaSrc: string | null = (() => {
     const media = trainMediaByPose[expectedPose]?.[0]
-    if (!media) return null
-    return media.src.startsWith('http') ? media.src : `${baseUrl}${media.src}`
+    if (media) {
+      return media.src.startsWith('http') ? media.src : `${baseUrl}${media.src}`
+    }
+    // Fallback to POSE_REFERENCES when the API hasn't returned media
+    const ref = POSE_REFERENCES.find((p) => p.pose === expectedPose)
+    if (ref?.src) {
+      return ref.src.startsWith('/train/') ? `${baseUrl}${ref.src}` : ref.src
+    }
+    return null
   })()
 
   return (
@@ -487,6 +494,7 @@ export default function App() {
             visibleLandmarkCount={visibleLandmarkCount}
             voiceEnabled={voiceOn}
             onNext={handleIntroNext}
+            onBack={handleTryAnother}
           />
         )}
       </AnimatePresence>

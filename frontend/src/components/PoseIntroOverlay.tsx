@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { PoseDescription } from '../data/poseDescriptions'
 
-const BASE_URL = 'http://localhost:8000'
-
 interface PoseIntroOverlayProps {
   pose: string
   mediaSrc: string | null
@@ -12,6 +10,8 @@ interface PoseIntroOverlayProps {
   visibleLandmarkCount: number
   voiceEnabled: boolean
   onNext: () => void
+  /** Navigates back to landing from the intro overlay */
+  onBack?: () => void
   /** Only used in results phase — navigates back to landing */
   onTryAnother?: () => void
   /** Only used in results phase */
@@ -44,6 +44,7 @@ export default function PoseIntroOverlay({
   visibleLandmarkCount,
   voiceEnabled,
   onNext,
+  onBack,
   onTryAnother,
   score,
   feedbackSummary,
@@ -59,7 +60,7 @@ export default function PoseIntroOverlay({
     return () => clearTimeout(t)
   }, [phase, pose])
 
-  const fullSrc = mediaSrc ? (mediaSrc.startsWith('http') ? mediaSrc : `${BASE_URL}${mediaSrc}`) : null
+  const fullSrc = mediaSrc || null
 
   /* ─── Intro Phase ─── */
   if (phase === 'intro') {
@@ -147,20 +148,33 @@ export default function PoseIntroOverlay({
               )}
             </motion.div>
 
-            {/* Let's Begin button */}
+            {/* Let's Begin + Back buttons */}
             <AnimatePresence>
               {showButton && (
-                <motion.button
-                  type="button"
-                  onClick={onNext}
-                  className="mt-6 w-full rounded-2xl bg-emerald-500 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-900/50 transition-colors hover:bg-emerald-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                <motion.div
+                  className="mt-6 flex flex-col gap-3"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.3 }}
                 >
-                  Let's Begin →
-                </motion.button>
+                  <button
+                    type="button"
+                    onClick={onNext}
+                    className="w-full rounded-2xl bg-emerald-500 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-900/50 transition-colors hover:bg-emerald-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                  >
+                    Let's Begin →
+                  </button>
+                  {onBack && (
+                    <button
+                      type="button"
+                      onClick={onBack}
+                      className="w-full rounded-2xl border border-white/10 bg-white/5 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                    >
+                      ← Back to Poses
+                    </button>
+                  )}
+                </motion.div>
               )}
             </AnimatePresence>
           </div>
