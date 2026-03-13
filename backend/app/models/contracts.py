@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-ExpectedPose = Literal["Tadasana", "Warrior II", "Tree Pose", "Down Dog", "Goddess", "Plank"]
+ExpectedPose = str
 UserLevel = Literal["beginner", "intermediate", "advanced"]
 
 
@@ -44,3 +44,7 @@ class GeminiAlignmentResponse(BaseModel):
     deviations: list[Deviation]
     correction_message: str
     score: int | None = Field(default=None, ge=0, le=100)
+    correction_bullets: list[str] = Field(default_factory=list)
+    positive_observation: str = ""
+    breath_cue: str = ""
+    safety_note: str | None = None

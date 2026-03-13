@@ -48,6 +48,10 @@ export default memo(function UserCameraPanel(props: {
   score: number | null | undefined
   isAnalyzing: boolean
   feedbackMessage: string
+  correctionBullets?: string[]
+  positiveObservation?: string
+  breathCue?: string
+  safetyNote?: string | null
   onLandmarks: (landmarks: Landmark[], visibilityMean: number) => void
   framingEnabled: boolean
   framingState: 'cameraLoading' | 'notFramed' | 'partiallyFramed' | 'handsNotRaised' | 'fullyFramed'
@@ -216,7 +220,13 @@ export default memo(function UserCameraPanel(props: {
 
             <div className="absolute bottom-3 left-3 right-3 grid gap-2">
               <ScoreDisplay score={props.score} isAnalyzing={props.isAnalyzing} variant="bar" />
-              <FeedbackPanel message={props.feedbackMessage} />
+              <FeedbackPanel
+                message={props.feedbackMessage}
+                correctionBullets={props.correctionBullets}
+                positiveObservation={props.positiveObservation}
+                breathCue={props.breathCue}
+                safetyNote={props.safetyNote}
+              />
             </div>
 
             {props.countdown > 0 ? (

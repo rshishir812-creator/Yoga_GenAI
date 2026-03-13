@@ -1,0 +1,73 @@
+import { motion } from 'framer-motion'
+import PoseCard from './PoseCard'
+
+const containerVariants = {
+  hidden: {},
+  show: {
+    transition: {
+      staggerChildren: 0.07,
+      delayChildren: 0.1,
+    },
+  },
+}
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 28 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: 'easeOut' as const } },
+}
+
+export default function LandingPage(props: {
+  poses: string[]
+  onSelectPose: (pose: string) => void
+}) {
+  const { poses, onSelectPose } = props
+
+  return (
+    <div className="min-h-screen overflow-y-auto bg-gradient-to-b from-slate-950 via-slate-900 to-neutral-950 text-slate-50">
+      <div className="mx-auto max-w-6xl px-4 py-12">
+        {/* Header */}
+        <motion.div
+          className="mb-12 text-center"
+          initial={{ opacity: 0, y: -22 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, ease: 'easeOut' }}
+        >
+          <h1 className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-5xl font-bold tracking-tight text-transparent">
+            OorjaKull AI Yoga
+          </h1>
+          <p className="mt-3 text-lg text-slate-300">
+            Choose a pose to begin your guided practice
+          </p>
+          <div className="mx-auto mt-3 h-1 w-16 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400" />
+        </motion.div>
+
+        {/* Pose grid */}
+        <motion.div
+          className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4"
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+        >
+          {poses.map((pose, i) => (
+            <motion.div key={pose} variants={cardVariants}>
+              <PoseCard
+                poseName={pose}
+                index={i}
+                onClick={() => onSelectPose(pose)}
+              />
+            </motion.div>
+          ))}
+        </motion.div>
+
+        <motion.p
+          className="mt-10 text-center text-xs text-slate-500"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1 }}
+        >
+          Enable Voice in the top bar for guided audio instructions
+        </motion.p>
+      </div>
+    </div>
+  )
+}

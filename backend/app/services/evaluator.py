@@ -41,6 +41,24 @@ def _sanitize_alignment_response(resp: dict[str, Any]) -> dict[str, Any]:
                     d["issue"] = _strip_digits(issue)
                 if isinstance(ideal, str):
                     d["ideal_range"] = _strip_digits(ideal)
+
+    # Sanitize new detailed feedback fields
+    bullets = resp.get("correction_bullets")
+    if isinstance(bullets, list):
+        resp["correction_bullets"] = [_strip_digits(b) for b in bullets if isinstance(b, str)]
+
+    positive = resp.get("positive_observation")
+    if isinstance(positive, str):
+        resp["positive_observation"] = _strip_digits(positive)
+
+    breath = resp.get("breath_cue")
+    if isinstance(breath, str):
+        resp["breath_cue"] = _strip_digits(breath)
+
+    safety = resp.get("safety_note")
+    if isinstance(safety, str):
+        resp["safety_note"] = _strip_digits(safety)
+
     return resp
 
 
@@ -73,6 +91,10 @@ class AlignmentEvaluator:
                 "deviations": [],
                 "correction_message": "Ensure full body is visible.",
                 "score": None,
+                "correction_bullets": [],
+                "positive_observation": "",
+                "breath_cue": "",
+                "safety_note": None,
             }
             state.last_metrics = metrics
             state.last_metrics_ts = now
@@ -158,6 +180,10 @@ class AlignmentEvaluator:
                 "deviations": [],
                 "correction_message": correction,
                 "score": score,
+                "correction_bullets": [],
+                "positive_observation": "",
+                "breath_cue": "",
+                "safety_note": None,
             }
 
         parsed = _sanitize_alignment_response(parsed)

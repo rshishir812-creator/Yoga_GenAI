@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import type { ExpectedPose, FocusArea, Severity } from '../api/client'
+import type { ExpectedPose, FocusArea, Severity, TrainMedia } from '../api/client'
 import { POSE_REFERENCES } from '../poses/reference'
 import HighlightOverlay from './HighlightOverlay'
 
@@ -36,18 +36,24 @@ export default memo(function InstructorPanel(props: {
   severity: Severity | null
   alignedPulseActive: boolean
   alignedPulseKey: number
+  trainMedia?: TrainMedia[]
 }) {
-  const ref = POSE_REFERENCES.find((p) => p.pose === props.expectedPose)
+  const train = props.trainMedia?.[0]
+  const ref = !train ? POSE_REFERENCES.find((p) => p.pose === props.expectedPose) : null
 
   const stageRef = useRef<HTMLDivElement | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
   const [fitRect, setFitRect] = useState<FitRect>({ x: 0, y: 0, width: 0, height: 0 })
 
-  const mediaSrc = ref
-    ? ref.kind === 'video'
-      ? `${props.baseUrl}${ref.src}`
-      : ref.src
+  const kind = train?.kind ?? ref?.kind
+  const src = train?.src ?? ref?.src ?? ''
+  const mediaSrc = src
+    ? kind === 'video'
+      ? `${props.baseUrl}${src}`
+      : src.startsWith('/train/')
+        ? `${props.baseUrl}${src}`
+        : src
     : ''
 
   const recomputeFitRect = useMemo(() => {
@@ -60,7 +66,7 @@ export default memo(function InstructorPanel(props: {
 
       let mw = 0
       let mh = 0
-      if (ref?.kind === 'video') {
+      if (kind === 'video') {
         const v = videoRef.current
         mw = v?.videoWidth ?? 0
         mh = v?.videoHeight ?? 0
@@ -73,7 +79,7 @@ export default memo(function InstructorPanel(props: {
       const rect = computeObjectContainRect(cw, ch, mw, mh)
       setFitRect(rect)
     }
-  }, [ref?.kind])
+  }, [kind])
 
   useEffect(() => {
     recomputeFitRect()
@@ -100,7 +106,7 @@ export default memo(function InstructorPanel(props: {
       <div className="min-h-0 flex-1 px-3 pb-3">
         <div className="relative h-full overflow-hidden rounded-2xl border border-white/10 bg-black/20">
           <div ref={stageRef} className="relative h-full w-full">
-            {ref?.kind === 'video' ? (
+            {kind === 'video' ? (
               <video
                 ref={videoRef}
                 src={mediaSrc}

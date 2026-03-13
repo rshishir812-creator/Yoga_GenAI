@@ -1,10 +1,4 @@
-export type ExpectedPose =
-  | 'Tadasana'
-  | 'Warrior II'
-  | 'Tree Pose'
-  | 'Down Dog'
-  | 'Goddess'
-  | 'Plank'
+export type ExpectedPose = string
 export type UserLevel = 'beginner' | 'intermediate' | 'advanced'
 
 export type FocusArea = 'front_knee' | 'back_leg' | 'arms' | 'torso' | 'hips' | 'balance' | 'none'
@@ -25,9 +19,38 @@ export type AlignmentResponse = {
   deviations: Deviation[]
   correction_message: string
   score?: number | null
+  /** 3-5 plain-English improvement instructions */
+  correction_bullets: string[]
+  /** One sentence on what the student is doing right */
+  positive_observation: string
+  /** Breath guidance for this moment in the pose */
+  breath_cue: string
+  /** Safety caution if a joint is severely misaligned, otherwise null */
+  safety_note: string | null
 }
 
 export type Landmark = { x: number; y: number; z: number; visibility: number }
+
+export type TrainMediaKind = 'image' | 'video'
+
+export type TrainMedia = {
+  kind: TrainMediaKind
+  src: string
+  filename: string
+}
+
+export type TrainPose = {
+  pose: string
+  media: TrainMedia[]
+}
+
+export async function fetchTrainPoses(params: { baseUrl: string }): Promise<TrainPose[]> {
+  const res = await fetch(`${params.baseUrl}/api/train/poses`)
+  if (!res.ok) return []
+
+  const data = (await res.json()) as { poses?: TrainPose[] }
+  return Array.isArray(data.poses) ? data.poses : []
+}
 
 export async function evaluateAlignment(params: {
   baseUrl: string
