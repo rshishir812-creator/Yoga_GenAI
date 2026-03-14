@@ -105,7 +105,7 @@ export default function App() {
   const [evaluating, setEvaluating] = useState(false)
 
   // ── Orientation auto-detect ─────────────────────────────────────────────
-  const { orientation, isMobile, isPortraitMobile } = useOrientation()
+  const { isMobile, isPortraitMobile } = useOrientation()
 
   // Auto-detect layout mode on first load (and when device changes), unless user overrode
   useEffect(() => {
