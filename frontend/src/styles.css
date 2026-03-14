@@ -71,3 +71,14 @@ body {
 .calib-pulse {
   animation: calibPulse 1.6s ease-in-out infinite;
 }
+
+/* ── Mobile portrait: ensure panels fill the viewport ─────────────── */
+@media (orientation: portrait) and (max-width: 768px) {
+  /* Remove any max-width constraint on the device frame in portrait */
+  .portrait-full {
+    max-width: 100% !important;
+    border-radius: 0 !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+}

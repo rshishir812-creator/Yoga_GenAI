@@ -13,6 +13,7 @@ import { useVoiceGuide } from './hooks/useVoiceGuide'
 import { DEFAULT_VOICE_SETTINGS } from './hooks/useVoiceGuide'
 import type { VoiceSettings as VoiceSettingsType } from './hooks/useVoiceGuide'
 import { useThrottledState } from './hooks/useThrottledState'
+import { useOrientation } from './hooks/useOrientation'
 import { POSE_REFERENCES, worstSeverity } from './poses/reference'
 
 type FramingState = 'cameraLoading' | 'notFramed' | 'partiallyFramed' | 'handsNotRaised' | 'fullyFramed'
@@ -99,7 +100,27 @@ export default function App() {
   const [voiceOn, setVoiceOn] = useState(true)
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettingsType>(DEFAULT_VOICE_SETTINGS)
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('laptop')
+  const [layoutAutoDetected, setLayoutAutoDetected] = useState(true)
+  const [activePanel, setActivePanel] = useState<'instructor' | 'self'>('self')
   const [evaluating, setEvaluating] = useState(false)
+
+  // ── Orientation auto-detect ─────────────────────────────────────────────
+  const { orientation, isMobile, isPortraitMobile } = useOrientation()
+
+  // Auto-detect layout mode on first load (and when device changes), unless user overrode
+  useEffect(() => {
+    if (layoutAutoDetected) {
+      setLayoutMode(isMobile ? 'mobile' : 'laptop')
+    }
+  }, [isMobile, layoutAutoDetected])
+
+  const handleLayoutChange = (mode: LayoutMode) => {
+    setLayoutAutoDetected(false) // user explicitly chose
+    setLayoutMode(mode)
+  }
+
+  // In portrait-mobile mode, show only one panel at a time
+  const showFlipButton = layoutMode === 'mobile' && isPortraitMobile
 
   const [framingEnabled, setFramingEnabled] = useState(false)
   const [framingUiVisible, setFramingUiVisible] = useState(false)
@@ -186,11 +207,15 @@ export default function App() {
   const pageLayoutClass =
     layoutMode === 'laptop'
       ? 'grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2'
-      : 'flex min-h-0 flex-1 flex-col gap-3'
+      : showFlipButton
+        ? 'flex min-h-0 flex-1 flex-col'           // portrait-mobile: single panel, no gap
+        : 'flex min-h-0 flex-1 flex-col gap-3'      // landscape-mobile: stacked with gap
 
   const deviceFrame =
     layoutMode === 'mobile'
-      ? 'mx-auto flex h-full w-full max-w-[440px] flex-col rounded-[32px] border border-white/10 bg-black/20 p-3 shadow-2xl shadow-black/40'
+      ? showFlipButton
+        ? 'mx-auto flex h-full w-full flex-col bg-black/20'  // portrait: full width, no phone-frame padding
+        : 'mx-auto flex h-full w-full max-w-[440px] flex-col rounded-[32px] border border-white/10 bg-black/20 p-3 shadow-2xl shadow-black/40'
       : 'flex h-full flex-col'
 
   // ── Voice intro when entering 'intro' phase ──────────────────────────────
@@ -522,7 +547,7 @@ export default function App() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <LayoutToggle mode={layoutMode} onChange={setLayoutMode} />
+              <LayoutToggle mode={layoutMode} onChange={handleLayoutChange} autoDetected={layoutAutoDetected} />
 
               {experiencePhase === 'evaluating' && (
                 <>
@@ -561,55 +586,73 @@ export default function App() {
           <div className="relative flex-1 min-h-0">
             <div className={`${deviceFrame} h-full`}>
               <div className={`${pageLayoutClass} min-h-0 flex-1`}>
-                <InstructorPanel
-                  baseUrl={baseUrl}
-                  expectedPose={expectedPose}
-                  primaryFocusArea={alignment.primary_focus_area}
-                  severity={severity}
-                  alignedPulseActive={alignedPulseActive}
-                  alignedPulseKey={alignedPulseKey}
-                  trainMedia={trainMediaByPose[expectedPose]}
-                />
-                <UserCameraPanel
-                  running={running}
-                  countdown={countdown}
-                  statusText={statusText}
-                  confidence={alignment.confidence}
-                  score={alignment.score}
-                  isAnalyzing={isAnalyzing}
-                  feedbackMessage={alignment.correction_message}
-                  correctionBullets={alignment.correction_bullets}
-                  positiveObservation={alignment.positive_observation}
-                  breathCue={alignment.breath_cue}
-                  safetyNote={alignment.safety_note}
-                  framingEnabled={framingUiVisible}
-                  framingState={framing.state}
-                  framingMessage={framing.message}
-                  onLandmarks={(lms, visMean) => {
-                    latestLandmarksRef.current = lms
-                    latestVisibilityRef.current = visMean
+                {/* In portrait-mobile: show only active panel. Otherwise show both. */}
+                {(!showFlipButton || activePanel === 'instructor') && (
+                  <InstructorPanel
+                    baseUrl={baseUrl}
+                    expectedPose={expectedPose}
+                    primaryFocusArea={alignment.primary_focus_area}
+                    severity={severity}
+                    alignedPulseActive={alignedPulseActive}
+                    alignedPulseKey={alignedPulseKey}
+                    trainMedia={trainMediaByPose[expectedPose]}
+                  />
+                )}
+                {(!showFlipButton || activePanel === 'self') && (
+                  <UserCameraPanel
+                    running={running}
+                    countdown={countdown}
+                    statusText={statusText}
+                    confidence={alignment.confidence}
+                    score={alignment.score}
+                    isAnalyzing={isAnalyzing}
+                    feedbackMessage={alignment.correction_message}
+                    correctionBullets={alignment.correction_bullets}
+                    positiveObservation={alignment.positive_observation}
+                    breathCue={alignment.breath_cue}
+                    safetyNote={alignment.safety_note}
+                    framingEnabled={framingUiVisible}
+                    framingState={framing.state}
+                    framingMessage={framing.message}
+                    isPortrait={isPortraitMobile}
+                    onLandmarks={(lms, visMean) => {
+                      latestLandmarksRef.current = lms
+                      latestVisibilityRef.current = visMean
 
-                    // Track visible count for framing overlay
-                    if (lms) {
-                      const count = lms.filter((lm) => lm.visibility > 0.5).length
-                      setVisibleLandmarkCount(count)
-                    }
-
-                    if (framingEnabled) {
-                      const next = computeFraming(lms)
-                      setFraming(next)
-                      if (next.state === 'fullyFramed') {
-                        setFramingEnabled(false)
-                        if (framingUiTimerRef.current) window.clearTimeout(framingUiTimerRef.current)
-                        framingUiTimerRef.current = window.setTimeout(() => {
-                          setFramingUiVisible(false)
-                          framingUiTimerRef.current = null
-                        }, 2000)
+                      // Track visible count for framing overlay
+                      if (lms) {
+                        const count = lms.filter((lm) => lm.visibility > 0.5).length
+                        setVisibleLandmarkCount(count)
                       }
-                    }
-                  }}
-                />
+
+                      if (framingEnabled) {
+                        const next = computeFraming(lms)
+                        setFraming(next)
+                        if (next.state === 'fullyFramed') {
+                          setFramingEnabled(false)
+                          if (framingUiTimerRef.current) window.clearTimeout(framingUiTimerRef.current)
+                          framingUiTimerRef.current = window.setTimeout(() => {
+                            setFramingUiVisible(false)
+                            framingUiTimerRef.current = null
+                          }, 2000)
+                        }
+                      }
+                    }}
+                  />
+                )}
               </div>
+
+              {/* Flip button — visible only in portrait-mobile mode */}
+              {showFlipButton && (
+                <button
+                  type="button"
+                  onClick={() => setActivePanel((p) => (p === 'self' ? 'instructor' : 'self'))}
+                  className="absolute bottom-5 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/20 bg-slate-900/90 px-4 py-2.5 text-sm font-medium text-white shadow-xl shadow-black/40 backdrop-blur-md transition-all active:scale-95"
+                >
+                  <span className="text-base">🔄</span>
+                  {activePanel === 'self' ? 'Show Instructor' : 'Show Self View'}
+                </button>
+              )}
             </div>
 
             {/* Framing overlay */}

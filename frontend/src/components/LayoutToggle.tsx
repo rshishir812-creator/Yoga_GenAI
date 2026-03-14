@@ -27,23 +27,29 @@ function SegButton(props: {
 export default memo(function LayoutToggle(props: {
   mode: LayoutMode
   onChange: (mode: LayoutMode) => void
+  autoDetected?: boolean
 }) {
   return (
-    <div
-      role="group"
-      aria-label="Layout mode"
-      className="inline-flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 backdrop-blur"
-    >
-      <SegButton
-        label="Laptop View"
-        active={props.mode === 'laptop'}
-        onClick={() => props.onChange('laptop')}
-      />
-      <SegButton
-        label="Mobile View"
-        active={props.mode === 'mobile'}
-        onClick={() => props.onChange('mobile')}
-      />
+    <div className="flex items-center gap-2">
+      <div
+        role="group"
+        aria-label="Layout mode"
+        className="inline-flex items-center gap-1 rounded-2xl border border-white/10 bg-white/5 p-1 backdrop-blur"
+      >
+        <SegButton
+          label="💻 Laptop"
+          active={props.mode === 'laptop'}
+          onClick={() => props.onChange('laptop')}
+        />
+        <SegButton
+          label="📱 Mobile"
+          active={props.mode === 'mobile'}
+          onClick={() => props.onChange('mobile')}
+        />
+      </div>
+      {props.autoDetected && (
+        <span className="text-[10px] text-slate-500">auto</span>
+      )}
     </div>
   )
 })

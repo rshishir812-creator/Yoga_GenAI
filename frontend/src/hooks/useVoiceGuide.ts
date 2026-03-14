@@ -1,65 +1,78 @@
 import { useCallback, useRef } from 'react'
 
+export type VoiceGender = 'male' | 'female'
+
 /**
- * Pick a calm, natural-sounding female voice — ideal for a yoga instructor.
- * Priority: female en-IN voices (best for Sanskrit) → female en-US/en-GB → any en voice.
+ * Named en-IN voices grouped by gender.
+ * These cover Windows (Edge/Chrome Neural), macOS, iOS, and Android.
  */
-function getPreferredVoice(): SpeechSynthesisVoice | null {
+const FEMALE_EN_IN = [
+  'Microsoft Neerja Online',   // Edge Neural — very natural
+  'Microsoft Neerja',
+  'Neerja',
+  'Google हिन्दी',            // Some Chrome builds expose this for en-IN
+  'Veena',                     // macOS / iOS en-IN female
+  'Lekha',                     // macOS en-IN female
+]
+
+const MALE_EN_IN = [
+  'Microsoft Prabhat Online',  // Edge Neural male
+  'Microsoft Prabhat',
+  'Prabhat',
+  'Rishi',                     // macOS / iOS en-IN male
+]
+
+/**
+ * Pick an en-IN voice matching the requested gender.
+ * Fallback order: named list → any en-IN matching gender → any en-IN → null.
+ * We intentionally do NOT fall back to UK/US/AU voices.
+ */
+function getPreferredVoice(gender: VoiceGender = 'female'): SpeechSynthesisVoice | null {
   const voices = window.speechSynthesis.getVoices()
   if (!voices.length) return null
 
-  // 1. Premium female en-IN voices (calm, natural, great for Sanskrit)
-  const FEMALE_EN_IN = [
-    'Microsoft Neerja Online',  // Neural — very natural
-    'Microsoft Neerja',
-    'Neerja',
-    'Google हिन्दी',           // Some Chrome builds expose this for en-IN
-    'Veena',                    // macOS / iOS en-IN female
-    'Lekha',                    // macOS en-IN female
-  ]
-  for (const name of FEMALE_EN_IN) {
+  const nameList = gender === 'male' ? MALE_EN_IN : FEMALE_EN_IN
+  const avoidList = gender === 'male' ? FEMALE_EN_IN : MALE_EN_IN
+
+  // 1. Try named voices for the preferred gender
+  for (const name of nameList) {
     const v = voices.find((v) => v.name.includes(name))
     if (v) return v
   }
 
-  // 2. Any female-sounding en-IN voice (avoid "Rishi" which is male)
-  const enINFemale = voices.find(
-    (v) => v.lang === 'en-IN' && !v.name.toLowerCase().includes('rishi'),
+  // 2. Any en-IN voice that is NOT in the opposite-gender list
+  const enINMatch = voices.find(
+    (v) =>
+      v.lang === 'en-IN' &&
+      !avoidList.some((n) => v.name.toLowerCase().includes(n.toLowerCase())),
   )
-  if (enINFemale) return enINFemale
+  if (enINMatch) return enINMatch
 
-  // 3. Any en-IN voice at all
+  // 3. Any en-IN voice at all (better than nothing)
   const enIN = voices.find((v) => v.lang === 'en-IN')
   if (enIN) return enIN
 
-  // 4. Calm female voices from other English locales
-  const FEMALE_FALLBACK = [
-    'Samantha',             // macOS — warm, natural
-    'Karen',                // macOS en-AU — soft
-    'Moira',                // macOS en-IE — gentle
-    'Tessa',                // macOS en-ZA
-    'Google UK English Female',
-    'Google US English',
-    'Microsoft Zira',       // Windows en-US female
-  ]
-  for (const name of FEMALE_FALLBACK) {
-    const v = voices.find((v) => v.name.includes(name))
-    if (v) return v
-  }
+  // No en-IN voice available — return null so caller can show a warning
+  return null
+}
 
-  return (
-    voices.find((v) => v.lang === 'en-US') ??
-    voices.find((v) => v.lang.startsWith('en')) ??
-    voices[0] ??
-    null
-  )
+/** Check whether at least one en-IN voice exists for the given gender. */
+export function hasEnINVoice(gender: VoiceGender): boolean {
+  const voices = window.speechSynthesis.getVoices()
+  if (!voices.length) return false
+  const nameList = gender === 'male' ? MALE_EN_IN : FEMALE_EN_IN
+  // Check named voices first
+  if (nameList.some((n) => voices.some((v) => v.name.includes(n)))) return true
+  // Check any en-IN voice
+  return voices.some((v) => v.lang === 'en-IN')
 }
 
 export interface VoiceSettings {
-  rate: number    // 0.5 – 2
-  pitch: number   // 0 – 2
-  volume: number  // 0 – 1
-  voiceName: string | null // null = auto-select
+  rate: number          // 0.5 – 2
+  pitch: number         // 0 – 2
+  volume: number        // 0 – 1
+  voiceName: string | null  // null = auto-select
+  gender: VoiceGender   // male or female
 }
 
 export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
@@ -67,6 +80,7 @@ export const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
   pitch: 1.05,
   volume: 0.92,
   voiceName: null,
+  gender: 'female',
 }
 
 export interface VoiceGuide {
@@ -111,8 +125,8 @@ export function useVoiceGuide(voiceEnabled: boolean, settings: VoiceSettings = D
         u.pitch = settings.pitch
         u.volume = settings.volume
         const voice = settings.voiceName
-          ? window.speechSynthesis.getVoices().find((v) => v.name === settings.voiceName) ?? getPreferredVoice()
-          : getPreferredVoice()
+          ? window.speechSynthesis.getVoices().find((v) => v.name === settings.voiceName) ?? getPreferredVoice(settings.gender)
+          : getPreferredVoice(settings.gender)
         if (voice) u.voice = voice
         if (onEnd) u.onend = () => onEnd()
         window.speechSynthesis.speak(u)
@@ -155,8 +169,8 @@ export function useVoiceGuide(voiceEnabled: boolean, settings: VoiceSettings = D
       u.pitch = settings.pitch
       u.volume = settings.volume
       const voice = settings.voiceName
-        ? window.speechSynthesis.getVoices().find((v) => v.name === settings.voiceName) ?? getPreferredVoice()
-        : getPreferredVoice()
+        ? window.speechSynthesis.getVoices().find((v) => v.name === settings.voiceName) ?? getPreferredVoice(settings.gender)
+        : getPreferredVoice(settings.gender)
       if (voice) u.voice = voice
       if (onEnd) u.onend = () => onEnd()
       window.speechSynthesis.speak(u)

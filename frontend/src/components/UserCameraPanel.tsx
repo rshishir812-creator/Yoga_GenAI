@@ -13,16 +13,19 @@ function drawSkeleton(params: {
   displayHeight: number
   videoWidth: number
   videoHeight: number
+  objectFit?: 'cover' | 'contain'
 }) {
-  const { canvas, landmarks, displayWidth, displayHeight, videoWidth, videoHeight } = params
+  const { canvas, landmarks, displayWidth, displayHeight, videoWidth, videoHeight, objectFit = 'cover' } = params
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
   const w = displayWidth
   const h = displayHeight
 
-  // Video is displayed with object-cover, so account for cropping.
-  const scale = Math.max(w / videoWidth, h / videoHeight)
+  // Use the appropriate scale depending on object-fit mode.
+  const scale = objectFit === 'contain'
+    ? Math.min(w / videoWidth, h / videoHeight)
+    : Math.max(w / videoWidth, h / videoHeight)
   const drawnW = videoWidth * scale
   const drawnH = videoHeight * scale
   const offsetX = (w - drawnW) / 2
@@ -56,6 +59,7 @@ export default memo(function UserCameraPanel(props: {
   framingEnabled: boolean
   framingState: 'cameraLoading' | 'notFramed' | 'partiallyFramed' | 'handsNotRaised' | 'fullyFramed'
   framingMessage: string
+  isPortrait?: boolean
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -71,12 +75,13 @@ export default memo(function UserCameraPanel(props: {
 
     async function start() {
       try {
+        // In portrait mode request portrait-friendly resolution to avoid cropping
+        const videoConstraints: MediaTrackConstraints = props.isPortrait
+          ? { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1280 } }
+          : { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
+
         stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: 'user',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
+          video: videoConstraints,
           audio: false
         })
         if (videoRef.current) {
@@ -94,7 +99,7 @@ export default memo(function UserCameraPanel(props: {
     return () => {
       if (stream) stream.getTracks().forEach((t) => t.stop())
     }
-  }, [])
+  }, [props.isPortrait])
 
   useEffect(() => {
     let raf = 0
@@ -140,7 +145,8 @@ export default memo(function UserCameraPanel(props: {
               displayWidth,
               displayHeight,
               videoWidth: video.videoWidth,
-              videoHeight: video.videoHeight
+              videoHeight: video.videoHeight,
+              objectFit: props.isPortrait ? 'contain' : 'cover',
             })
             const visibilityMean = landmarks.reduce((a, l) => a + l.visibility, 0) / landmarks.length
             props.onLandmarks(landmarks, visibilityMean)
@@ -174,7 +180,7 @@ export default memo(function UserCameraPanel(props: {
       <div className="min-h-0 flex-1 px-3 pb-3">
         <div className="relative h-full overflow-hidden rounded-2xl border border-white/10 bg-black/40 shadow-xl shadow-black/30">
           <div ref={stageRef} className="relative h-full w-full">
-            <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full object-cover" />
+            <video ref={videoRef} playsInline muted className={`absolute inset-0 h-full w-full ${props.isPortrait ? 'object-contain' : 'object-cover'}`} />
             <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
             <div className="pointer-events-none absolute inset-0 p-3">
