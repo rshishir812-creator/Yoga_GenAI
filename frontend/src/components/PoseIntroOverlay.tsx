@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { PoseDescription } from '../data/poseDescriptions'
 
@@ -51,6 +51,69 @@ export default function PoseIntroOverlay({
 }: PoseIntroOverlayProps) {
   const [showButton, setShowButton] = useState(false)
   const isReady = visibleLandmarkCount >= 20
+
+  // ── Auto-countdown for framing phase ─────────────────────────────────────
+  const [framingCountdown, setFramingCountdown] = useState(0)
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const hasTriggeredRef = useRef(false)
+
+  const stableOnNext = useCallback(() => onNext(), [onNext])
+
+  // Reset when entering / leaving framing phase
+  useEffect(() => {
+    if (phase !== 'framing') {
+      setFramingCountdown(0)
+      hasTriggeredRef.current = false
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current)
+        countdownRef.current = null
+      }
+    }
+  }, [phase])
+
+  // Start 5-second countdown once body is detected; cancel if body disappears
+  useEffect(() => {
+    if (phase !== 'framing' || hasTriggeredRef.current) return
+
+    if (isReady && framingCountdown === 0) {
+      // Body detected → begin countdown
+      setFramingCountdown(5)
+      if (countdownRef.current) clearInterval(countdownRef.current)
+      countdownRef.current = setInterval(() => {
+        setFramingCountdown((prev) => {
+          if (prev <= 1) {
+            if (countdownRef.current) {
+              clearInterval(countdownRef.current)
+              countdownRef.current = null
+            }
+            hasTriggeredRef.current = true
+            setTimeout(() => stableOnNext(), 0)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    }
+
+    if (!isReady && framingCountdown > 0) {
+      // Body lost → reset countdown
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current)
+        countdownRef.current = null
+      }
+      setFramingCountdown(0)
+    }
+  }, [phase, isReady, framingCountdown, stableOnNext])
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current)
+        countdownRef.current = null
+      }
+    }
+  }, [])
 
   // Show the "Let's Begin" button after a short moment so the overlay isn't skipped accidentally
   useEffect(() => {
@@ -185,51 +248,98 @@ export default function PoseIntroOverlay({
 
   /* ─── Framing Phase ─── */
   if (phase === 'framing') {
+    const countdownActive = framingCountdown > 0
+
     return (
       <motion.div
         key="framing-overlay"
-        className="absolute inset-0 z-40 flex items-center justify-center rounded-2xl"
-        style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(3px)' }}
+        className="absolute inset-0 z-40 flex flex-col items-center justify-end rounded-2xl"
+        style={{ backgroundColor: 'rgba(0,0,0,0.30)' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <div className="mx-4 w-full max-w-sm rounded-2xl border border-white/15 bg-black/70 p-7 text-center backdrop-blur">
-          <div className="mb-1 text-3xl">🧘</div>
-          <h3 className="text-xl font-semibold text-white">Step into the frame</h3>
-          <p className="mt-2 text-sm text-slate-300">
-            Hold your{' '}
-            <span className="font-medium text-emerald-400">{pose}</span>{' '}
-            pose and press <em>"I'm Ready"</em> when set.
-          </p>
+        {/* Large centered countdown number */}
+        <AnimatePresence mode="wait">
+          {countdownActive && (
+            <motion.div
+              key={`cd-${framingCountdown}`}
+              className="absolute inset-0 flex items-center justify-center pointer-events-none"
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.3 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div
+                className="text-8xl font-bold text-white drop-shadow-2xl"
+                style={{ textShadow: '0 0 40px rgba(16,185,129,0.6)' }}
+              >
+                {framingCountdown}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-          {/* Landmark visibility bar */}
-          <div className="mt-5">
-            <div className="mb-1 flex justify-between text-xs text-slate-400">
-              <span>Body detected</span>
-              <span className={isReady ? 'text-emerald-400' : 'text-slate-400'}>
-                {visibleLandmarkCount} / 33
-              </span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-              <motion.div
-                className={`h-full rounded-full ${isReady ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                animate={{ width: `${Math.min(100, (visibleLandmarkCount / 33) * 100)}%` }}
-                transition={{ duration: 0.25 }}
-              />
+        {/* Bottom card — reference image + body detection status */}
+        <motion.div
+          className="mx-3 mb-3 w-full max-w-md rounded-2xl border border-white/15 bg-black/75 p-4 backdrop-blur-md"
+          initial={{ y: 30, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.1, duration: 0.3 }}
+        >
+          <div className="flex items-start gap-4">
+            {/* Reference image thumbnail */}
+            {fullSrc && (
+              <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-emerald-500/30 shadow-lg shadow-emerald-900/20">
+                <MediaThumb src={fullSrc} alt={pose} />
+              </div>
+            )}
+
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base font-semibold text-white">
+                {countdownActive ? 'Hold the pose!' : 'Step into the frame'}
+              </h3>
+              <p className="mt-0.5 text-xs text-slate-300">
+                {countdownActive ? (
+                  <>Evaluating in <span className="font-bold text-emerald-400">{framingCountdown}</span> seconds…</>
+                ) : (
+                  <>Match the <span className="font-medium text-emerald-400">{pose}</span> reference and stay visible.</>
+                )}
+              </p>
+
+              {/* Landmark visibility bar */}
+              <div className="mt-3">
+                <div className="mb-1 flex justify-between text-[10px] text-slate-400">
+                  <span>Body detected</span>
+                  <span className={isReady ? 'text-emerald-400' : 'text-slate-400'}>
+                    {visibleLandmarkCount} / 33
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                  <motion.div
+                    className={`h-full rounded-full ${isReady ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                    animate={{ width: `${Math.min(100, (visibleLandmarkCount / 33) * 100)}%` }}
+                    transition={{ duration: 0.25 }}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onNext}
-            disabled={!isReady}
-            className="mt-5 w-full rounded-2xl py-3 text-sm font-semibold transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-slate-400 enabled:bg-emerald-500 enabled:text-white enabled:shadow-lg enabled:shadow-emerald-900/50 enabled:hover:bg-emerald-400"
-          >
-            {isReady ? "✓  I'm Ready" : 'Waiting for your body to appear…'}
-          </button>
-        </div>
+          {/* Status message */}
+          <div className="mt-3 text-center text-xs text-slate-400">
+            {countdownActive ? (
+              <span className="text-emerald-300">✓ Body detected — hold your pose steady!</span>
+            ) : isReady ? (
+              <span className="text-emerald-300">✓ Body detected — starting countdown…</span>
+            ) : (
+              <span className="anim-dots">
+                Waiting for your body to appear<span>.</span><span>.</span><span>.</span>
+              </span>
+            )}
+          </div>
+        </motion.div>
       </motion.div>
     )
   }

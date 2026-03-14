@@ -230,7 +230,7 @@ export default function App() {
   // ── Voice framing prompt when entering 'framing' phase ───────────────────
   useEffect(() => {
     if (experiencePhase !== 'framing') return
-    speak(`Now, please step into the camera frame and hold the ${expectedPose} pose. Press the I'm Ready button when you are set.`)
+    speak(`Now, please step into the camera frame. Match the ${expectedPose} reference pose shown below. Once your body is detected, a 5 second countdown will begin automatically.`)
   }, [experiencePhase, expectedPose, speak])
 
   // ── Handlers for experience phase transitions ─────────────────────────────
