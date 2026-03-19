@@ -109,6 +109,7 @@ export default function App() {
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('laptop')
   const [layoutAutoDetected, setLayoutAutoDetected] = useState(true)
   const [activePanel, setActivePanel] = useState<'instructor' | 'self'>('self')
+  const [cameraFullScreen, setCameraFullScreen] = useState(false)
   const [evaluating, setEvaluating] = useState(false)
 
   // ── Orientation auto-detect ─────────────────────────────────────────────
@@ -522,7 +523,7 @@ export default function App() {
   })()
 
   return (
-    <div className="h-screen overflow-hidden bg-slate-50 text-slate-900 transition-colors dark:bg-gradient-to-b dark:from-slate-950 dark:via-slate-900 dark:to-neutral-950 dark:text-slate-50">
+    <div className="h-dvh overflow-hidden bg-slate-50 text-slate-900 transition-colors dark:bg-gradient-to-b dark:from-slate-950 dark:via-slate-900 dark:to-neutral-950 dark:text-slate-50" style={{ height: '100dvh' }}>
       {/* ── Welcome page ──────────────────────────────────────────────────── */}
       <AnimatePresence>
         {experiencePhase === 'welcome' && (
@@ -580,51 +581,50 @@ export default function App() {
 
       {/* ── Practice area (framing + evaluating phases) ────────────────────── */}
       {experiencePhase !== 'welcome' && experiencePhase !== 'landing' && experiencePhase !== 'intro' && (
-        <div className="mx-auto flex h-full max-w-6xl flex-col px-3 py-3">
-          {/* Header */}
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
+        <div className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden px-2 py-1.5 sm:px-3 sm:py-3">
+          {/* Header — compact on mobile */}
+          <div className="mb-1.5 flex items-center justify-between gap-2 sm:mb-3 sm:flex-wrap sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={handleBackToLanding}
-                className="flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-white/80 px-2 py-1.5 text-xs text-slate-600 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:gap-1.5 sm:px-3 sm:py-2 sm:text-sm dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
               >
-                ← Poses
+                ←
               </button>
-              <div>
-                <div className="text-lg font-semibold tracking-tight">{expectedPose}</div>
-                {POSE_DESCRIPTIONS[expectedPose] && (
-                  <div className="text-xs italic text-emerald-400">
-                    {POSE_DESCRIPTIONS[expectedPose].sanskritName}
-                  </div>
-                )}
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold tracking-tight sm:text-lg">{expectedPose}</div>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <LayoutToggle mode={layoutMode} onChange={handleLayoutChange} autoDetected={layoutAutoDetected} />
+            <div className="flex items-center gap-1.5 sm:flex-wrap sm:gap-3">
+              {/* Show layout toggle only on larger screens */}
+              <div className="hidden sm:block">
+                <LayoutToggle mode={layoutMode} onChange={handleLayoutChange} autoDetected={layoutAutoDetected} />
+              </div>
 
               {experiencePhase === 'evaluating' && (
                 <>
                   <button
                     type="button"
                     onClick={() => (running || isFraming ? stopSession() : startSession())}
-                    className="h-10 rounded-2xl border border-slate-200 bg-white/80 px-4 text-sm text-slate-700 transition-colors duration-300 ease-in-out hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 dark:border-white/10 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                    className="h-8 rounded-2xl border border-slate-200 bg-white/80 px-3 text-xs text-slate-700 transition-colors duration-300 ease-in-out hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:h-10 sm:px-4 sm:text-sm dark:border-white/10 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
                   >
-                    {running ? 'Pause' : isFraming ? 'Cancel' : 'Start Evaluation'}
+                    {running ? 'Pause' : isFraming ? 'Cancel' : 'Start'}
                   </button>
 
                   <button
                     type="button"
                     onClick={reframeOnce}
                     disabled={isAnalyzing || isFraming}
-                    className="h-10 rounded-2xl border border-slate-200 bg-white/80 px-4 text-sm text-slate-700 transition-colors duration-300 ease-in-out hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                    className="hidden h-10 rounded-2xl border border-slate-200 bg-white/80 px-4 text-sm text-slate-700 transition-colors duration-300 ease-in-out hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 disabled:cursor-not-allowed disabled:opacity-50 sm:block dark:border-white/10 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
                   >
                     Reframe
                   </button>
                 </>
               )}
 
-              <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-200">
+              {/* Voice & theme — hidden on mobile, visible sm+ */}
+              <label className="hidden items-center gap-2 text-sm text-slate-600 sm:flex dark:text-slate-200">
                 <input
                   type="checkbox"
                   checked={voiceOn}
@@ -634,11 +634,10 @@ export default function App() {
                 🔊 Voice
               </label>
 
-              {/* Theme toggle */}
               <button
                 type="button"
                 onClick={toggleTheme}
-                className="flex h-10 items-center gap-1.5 rounded-2xl border border-slate-200 bg-white/80 px-3 text-sm text-slate-600 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 dark:border-white/10 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
+                className="hidden h-10 items-center gap-1.5 rounded-2xl border border-slate-200 bg-white/80 px-3 text-sm text-slate-600 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:flex dark:border-white/10 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/15"
                 title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
               >
                 {theme === 'dark' ? '☀️' : '🌙'}
@@ -648,9 +647,9 @@ export default function App() {
               <button
                 type="button"
                 onClick={handleEndSession}
-                className="h-10 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
+                className="h-8 rounded-2xl border border-rose-200 bg-rose-50 px-2.5 text-xs font-medium text-rose-600 transition-colors hover:bg-rose-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 sm:h-10 sm:px-4 sm:text-sm dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400 dark:hover:bg-rose-500/20"
               >
-                End Session
+                End
               </button>
             </div>
           </div>
@@ -717,29 +716,42 @@ export default function App() {
 
               {/* View toggle — visible in mobile mode */}
               {showFlipButton && (
-                <div className="absolute bottom-4 left-1/2 z-50 flex -translate-x-1/2 overflow-hidden rounded-full border border-slate-200/80 bg-white/95 shadow-2xl shadow-black/30 backdrop-blur-md dark:border-white/15 dark:bg-slate-900/95 dark:shadow-black/50" style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-                  <button
-                    type="button"
-                    onClick={() => setActivePanel('instructor')}
-                    className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all active:scale-95 ${
-                      activePanel === 'instructor'
-                        ? 'bg-emerald-500 text-white shadow-inner'
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    📐 Reference
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActivePanel('self')}
-                    className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-all active:scale-95 ${
-                      activePanel === 'self'
-                        ? 'bg-emerald-500 text-white shadow-inner'
-                        : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                    }`}
-                  >
-                    📷 My View
-                  </button>
+                <div className="absolute bottom-3 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2" style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+                  <div className="flex overflow-hidden rounded-full border border-slate-200/80 bg-white/95 shadow-2xl shadow-black/30 backdrop-blur-md dark:border-white/15 dark:bg-slate-900/95 dark:shadow-black/50">
+                    <button
+                      type="button"
+                      onClick={() => setActivePanel('instructor')}
+                      className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium transition-all active:scale-95 ${
+                        activePanel === 'instructor'
+                          ? 'bg-emerald-500 text-white shadow-inner'
+                          : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      📐 Reference
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActivePanel('self')}
+                      className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium transition-all active:scale-95 ${
+                        activePanel === 'self'
+                          ? 'bg-emerald-500 text-white shadow-inner'
+                          : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      📷 My View
+                    </button>
+                  </div>
+                  {/* Full-screen expand button */}
+                  {activePanel === 'self' && (
+                    <button
+                      type="button"
+                      onClick={() => setCameraFullScreen(true)}
+                      className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200/80 bg-white/95 text-base shadow-2xl shadow-black/30 backdrop-blur-md transition-all active:scale-90 dark:border-white/15 dark:bg-slate-900/95 dark:shadow-black/50"
+                      title="Full screen camera"
+                    >
+                      ⛶
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -777,6 +789,59 @@ export default function App() {
               )}
             </AnimatePresence>
           </div>
+        </div>
+      )}
+
+      {/* ── Full-screen camera overlay ────────────────────────────────── */}
+      {cameraFullScreen && (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-black">
+          <UserCameraPanel
+            running={running}
+            countdown={countdown}
+            statusText={statusText}
+            confidence={alignment.confidence}
+            score={alignment.score}
+            isAnalyzing={isAnalyzing}
+            feedbackMessage={alignment.correction_message}
+            correctionBullets={alignment.correction_bullets}
+            positiveObservation={alignment.positive_observation}
+            breathCue={alignment.breath_cue}
+            safetyNote={alignment.safety_note}
+            framingEnabled={framingUiVisible}
+            framingState={framing.state}
+            framingMessage={framing.message}
+            isPortrait={isPortraitMobile}
+            onLandmarks={(lms, visMean) => {
+              latestLandmarksRef.current = lms
+              latestVisibilityRef.current = visMean
+              if (lms) {
+                const count = lms.filter((lm) => lm.visibility > 0.5).length
+                setVisibleLandmarkCount(count)
+              }
+              if (framingEnabled) {
+                const next = computeFraming(lms)
+                setFraming(next)
+                if (next.state === 'fullyFramed') {
+                  setFramingEnabled(false)
+                  if (framingUiTimerRef.current) window.clearTimeout(framingUiTimerRef.current)
+                  framingUiTimerRef.current = window.setTimeout(() => {
+                    setFramingUiVisible(false)
+                    framingUiTimerRef.current = null
+                  }, 2000)
+                }
+              }
+            }}
+          />
+          {/* Exit full-screen button */}
+          <button
+            type="button"
+            onClick={() => setCameraFullScreen(false)}
+            className="absolute right-3 top-3 z-[70] flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-lg text-white shadow-lg backdrop-blur-sm transition-all active:scale-90"
+            style={{ marginTop: 'env(safe-area-inset-top, 0px)' }}
+            title="Exit full screen"
+          >
+            ✕
+          </button>
         </div>
       )}
 
