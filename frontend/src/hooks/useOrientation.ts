@@ -2,11 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 
 export type Orientation = 'portrait' | 'landscape'
 
-/** Heuristic: consider a device "mobile" if it has touch support and a small screen */
+/** Heuristic: consider a device "mobile" if it has touch support and a small screen.
+ *  Uses the shorter screen dimension so landscape orientation doesn't break detection. */
 function detectIsMobile(): boolean {
   if (typeof window === 'undefined') return false
   const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
-  const narrowScreen = window.innerWidth <= 768
+  // Use the shorter dimension — this is always the portrait width regardless of orientation
+  const shortSide = Math.min(screen.width, screen.height)
+  const narrowScreen = shortSide <= 768
   return hasTouch && narrowScreen
 }
 
