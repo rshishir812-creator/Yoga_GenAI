@@ -253,7 +253,7 @@ export default function PoseIntroOverlay({
     return (
       <motion.div
         key="framing-overlay"
-        className="absolute inset-0 z-40 flex flex-col items-center justify-end rounded-2xl"
+        className="absolute inset-0 z-40 flex flex-col items-center justify-end rounded-2xl pb-14 sm:pb-3"
         style={{ backgroundColor: 'rgba(0,0,0,0.30)' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

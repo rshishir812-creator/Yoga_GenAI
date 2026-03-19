@@ -523,7 +523,7 @@ export default function App() {
   })()
 
   return (
-    <div className="h-dvh overflow-hidden bg-slate-50 text-slate-900 transition-colors dark:bg-gradient-to-b dark:from-slate-950 dark:via-slate-900 dark:to-neutral-950 dark:text-slate-50" style={{ height: '100dvh' }}>
+    <div className="overflow-hidden bg-slate-50 text-slate-900 transition-colors dark:bg-gradient-to-b dark:from-slate-950 dark:via-slate-900 dark:to-neutral-950 dark:text-slate-50" style={{ height: '100dvh', minHeight: '-webkit-fill-available' }}>
       {/* ── Welcome page ──────────────────────────────────────────────────── */}
       <AnimatePresence>
         {experiencePhase === 'welcome' && (

@@ -146,7 +146,7 @@ export default memo(function UserCameraPanel(props: {
               displayHeight,
               videoWidth: video.videoWidth,
               videoHeight: video.videoHeight,
-              objectFit: props.isPortrait ? 'contain' : 'cover',
+              objectFit: 'cover',
             })
             const visibilityMean = landmarks.reduce((a, l) => a + l.visibility, 0) / landmarks.length
             props.onLandmarks(landmarks, visibilityMean)
@@ -167,20 +167,23 @@ export default memo(function UserCameraPanel(props: {
 
   return (
     <div className="min-h-0 h-full rounded-2xl border border-white/10 bg-white/5 shadow-2xl shadow-black/30 backdrop-blur flex flex-col">
-      <div className="flex items-start justify-between gap-4 p-3">
-        <div>
-          <div className="text-xl font-medium tracking-tight text-slate-50">Your camera</div>
-          <div className="mt-1 text-xs text-slate-300">Live feed + skeleton</div>
+      {/* Header — hidden in portrait-mobile to maximize camera space */}
+      {!props.isPortrait && (
+        <div className="flex items-start justify-between gap-4 p-3">
+          <div>
+            <div className="text-xl font-medium tracking-tight text-slate-50">Your camera</div>
+            <div className="mt-1 text-xs text-slate-300">Live feed + skeleton</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
+            {headerBadge}
+          </div>
         </div>
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200">
-          {headerBadge}
-        </div>
-      </div>
+      )}
 
-      <div className="min-h-0 flex-1 px-3 pb-3">
-        <div className="relative h-full overflow-hidden rounded-2xl border border-white/10 bg-black/40 shadow-xl shadow-black/30">
+      <div className={`min-h-0 flex-1 ${props.isPortrait ? '' : 'px-3 pb-3'}`}>
+        <div className={`relative h-full overflow-hidden bg-black/40 shadow-xl shadow-black/30 ${props.isPortrait ? '' : 'rounded-2xl border border-white/10'}`}>
           <div ref={stageRef} className="relative h-full w-full">
-            <video ref={videoRef} playsInline muted className={`absolute inset-0 h-full w-full ${props.isPortrait ? 'object-contain' : 'object-cover'}`} />
+            <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full object-cover" />
             <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
 
             <div className="pointer-events-none absolute inset-0 p-3">
@@ -196,7 +199,7 @@ export default memo(function UserCameraPanel(props: {
             </div>
 
             {props.framingEnabled ? (
-              <div className="pointer-events-none absolute inset-0 grid place-items-center px-6">
+              <div className="pointer-events-none absolute inset-0 grid place-items-center px-4 sm:px-6">
                 <div className="w-full max-w-[560px]">
                   <AnimatePresence mode="wait" initial={false}>
                     <motion.div
@@ -205,8 +208,7 @@ export default memo(function UserCameraPanel(props: {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 2 }}
                       transition={{ duration: 0.35, ease: 'easeInOut' }}
-                      className="rounded-2xl border border-white/10 bg-black/40 px-5 py-4 text-xl font-semibold text-slate-50 backdrop-blur text-center"
-                      style={{ minHeight: 72 }}
+                      className="rounded-2xl border border-white/10 bg-black/40 px-4 py-3 text-sm font-semibold text-slate-50 backdrop-blur text-center sm:px-5 sm:py-4 sm:text-xl"
                     >
                       {props.framingMessage}
                     </motion.div>
@@ -224,7 +226,7 @@ export default memo(function UserCameraPanel(props: {
               {streamError ?? error ?? props.statusText}
             </div>
 
-            <div className="absolute bottom-3 left-3 right-3 grid gap-2">
+            <div className="absolute bottom-14 left-3 right-3 grid gap-2 sm:bottom-3">
               <ScoreDisplay score={props.score} isAnalyzing={props.isAnalyzing} variant="bar" />
               <FeedbackPanel
                 message={props.feedbackMessage}
