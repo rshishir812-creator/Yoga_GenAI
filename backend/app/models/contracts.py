@@ -86,3 +86,19 @@ class GeminiAlignmentResponse(BaseModel):
     positive_observation: str = ""
     breath_cue: str = ""
     safety_note: str | None = None
+
+class AssistantMessage(BaseModel):
+    """Represents a message in the conversation history."""
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class AssistantRequest(BaseModel):
+    """Request body for the assistant endpoint."""
+    message: str = Field(min_length=1, max_length=2000)
+    messages: list[AssistantMessage] = Field(default_factory=list, max_length=20)
+
+
+class AssistantResponse(BaseModel):
+    """Response body from the assistant endpoint."""
+    reply: str

@@ -1078,6 +1078,7 @@ export default function App() {
           onSendMessage={chatStore.addUserMessage}
           onBotReply={(text) => chatStore.addBotMessage(text, false)}
           userName={userName}
+          baseUrl={baseUrl}
         />
       )}
     </div>

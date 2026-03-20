@@ -144,3 +144,29 @@ export async function synthesizeSpeech(params: {
 
   return res.blob()
 }
+/**
+ * Call the backend assistant endpoint and get a conversational response from Madhu.
+ * Optionally include conversation history for context.
+ */
+export async function callAssistant(params: {
+  baseUrl: string
+  message: string
+  messages?: Array<{ role: 'user' | 'assistant'; content: string }>
+}): Promise<string> {
+  const res = await fetch(`${params.baseUrl}/api/assistant`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: params.message,
+      messages: params.messages || [],
+    }),
+  })
+
+  if (!res.ok) {
+    const detail = await res.text().catch(() => 'Unknown error')
+    throw new Error(`Assistant error ${res.status}: ${detail}`)
+  }
+
+  const data = (await res.json()) as { reply: string }
+  return data.reply
+}

@@ -11,9 +11,10 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.models.contracts import EvaluateRequest, GeminiAlignmentResponse, TTSRequest
+from app.models.contracts import EvaluateRequest, GeminiAlignmentResponse, TTSRequest, AssistantRequest, AssistantResponse
 from app.routers.breathwork import router as breathwork_router
 from app.services.evaluator import AlignmentEvaluator
+from app.services.assistant import AssistantService
 
 app = FastAPI(title="Yoga GenAI POC", version="0.1.0")
 
@@ -108,6 +109,7 @@ app.add_middleware(
 )
 
 evaluator = AlignmentEvaluator()
+assistant_service = AssistantService()
 
 app.include_router(breathwork_router)
 
@@ -123,6 +125,34 @@ _TTS_API_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/api/assistant", response_model=AssistantResponse)
+def assistant_message(req: AssistantRequest) -> dict[str, str]:
+    """
+    Handle conversational requests from the Madhu assistant.
+
+    Request:
+    {
+      "message": "What is Warrior II?",
+      "messages": [
+        {"role": "user", "content": "Hi there"},
+        {"role": "assistant", "content": "Namaste! How can I help?"}
+      ]
+    }
+
+    Response:
+    {
+      "reply": "Warrior II is a powerful standing pose..."
+    }
+    """
+    # Convert pydantic messages to dict format for the service
+    history = [{"role": msg.role, "content": msg.content} for msg in req.messages]
+
+    # Generate response
+    reply = assistant_service.generate_response(user_message=req.message, conversation_history=history)
+
+    return {"reply": reply}
 
 
 @app.post("/api/tts")

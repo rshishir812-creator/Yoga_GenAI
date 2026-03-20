@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { ChatMessage, PoseResultData } from '../hooks/useChatStore'
-import { getBotResponse } from '../data/chatResponses'
+import { callAssistant } from '../api/client'
 
 /* ── Sub-components ──────────────────────────────────────────────────────── */
 
@@ -120,6 +120,7 @@ interface ChatBotProps {
   onSendMessage: (text: string) => void
   onBotReply: (text: string) => void
   userName: string
+  baseUrl: string
 }
 
 export default function ChatBot({
@@ -129,6 +130,7 @@ export default function ChatBot({
   onToggle,
   onSendMessage,
   onBotReply,
+  baseUrl,
 }: ChatBotProps) {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -140,16 +142,34 @@ export default function ChatBot({
     }
   }, [messages, open])
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = input.trim()
     if (!text) return
     onSendMessage(text)
     setInput('')
-    // Bot reply after a small delay
-    setTimeout(() => {
-      const reply = getBotResponse(text)
+
+    // Convert chat history to format expected by assistant
+    // Filter for 'text' messages only and cap at 10
+    const history = messages
+      .filter((msg) => msg.type === 'text')
+      .slice(-10)
+      .map((msg) => ({
+        role: msg.sender === 'user' ? ('user' as const) : ('assistant' as const),
+        content: msg.text || '',
+      }))
+
+    try {
+      // Call backend assistant endpoint
+      const reply = await callAssistant({
+        baseUrl,
+        message: text,
+        messages: history,
+      })
       onBotReply(reply)
-    }, 500)
+    } catch (error) {
+      console.error('Assistant error:', error)
+      onBotReply("I'm having a moment of stillness — please try again shortly.")
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -176,7 +196,7 @@ export default function ChatBot({
               <div className="flex items-center gap-2">
                 <span className="text-lg">🧘</span>
                 <div>
-                  <div className="text-sm font-semibold text-white">OorjaKull Assistant</div>
+                  <div className="text-sm font-semibold text-white">Madhu</div>
                   <div className="text-[10px] text-emerald-100">Your yoga companion</div>
                 </div>
               </div>

@@ -60,7 +60,7 @@ export function useChatStore(userName: string) {
           id: uid(),
           sender: 'bot',
           type: 'text',
-          text: `Namaste, ${userName}! 🙏 Welcome to OorjaKull AI Yoga.\n\nI'm your practice companion. Ask me anything about yoga, or start a pose — I'll track your progress throughout this session!`,
+          text: `Namaste, ${userName}! 🙏 Welcome to OorjaKull AI Yoga.\n\nI'm Madhu, your practice companion. Ask me anything about yoga and breathwork, or start a pose — I'll track your progress throughout this session!`,
           timestamp: Date.now(),
         },
       ])
