@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.ai.groq_client import GroqClient
+from app.core.config import settings
 
 
 MADHU_SYSTEM_PROMPT = """
@@ -56,8 +57,10 @@ class AssistantService:
         Raises:
             RuntimeError: If Groq API key is not set or if the API call fails.
         """
-        # Build the messages array: history + new user message
-        messages: list[dict[str, str]] = []
+        # Build the messages array: system prompt + history + new user message
+        messages: list[dict[str, str]] = [
+            {"role": "system", "content": MADHU_SYSTEM_PROMPT}
+        ]
 
         if conversation_history:
             # Cap at last 10 messages to avoid token overflow
@@ -70,9 +73,8 @@ class AssistantService:
             # Call Groq with the same pattern as the pose evaluator
             self._llm._ensure_client()
             resp = self._llm._client.chat.completions.create(
-                model="llama-3.3-70b-versatile",  # Use the same model as configured
+                model=settings.groq_model,  # Use the same model as configured
                 temperature=0.7,  # Slightly higher for conversational warmth
-                system=MADHU_SYSTEM_PROMPT,
                 messages=messages,
             )
 
