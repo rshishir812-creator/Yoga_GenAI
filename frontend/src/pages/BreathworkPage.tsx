@@ -111,14 +111,12 @@ export default function BreathworkPage({
 
   return (
     <div className="relative min-h-screen overflow-y-auto bg-[#0a0a0a] text-white">
-      <motion.div
+      <div
         className="pointer-events-none absolute inset-0 opacity-15"
         style={{
           background:
             'radial-gradient(circle at 20% 20%, rgba(78,205,196,0.22), transparent 30%), radial-gradient(circle at 80% 30%, rgba(45,88,130,0.18), transparent 32%), radial-gradient(circle at 50% 100%, rgba(24,60,88,0.22), transparent 42%)',
         }}
-        animate={{ scale: [1, 1.05, 1] }}
-        transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
       />
 
       <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-4 sm:px-6 sm:pt-6">
