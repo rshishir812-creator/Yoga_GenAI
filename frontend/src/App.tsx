@@ -324,14 +324,15 @@ export default function App() {
     safety.resetSession()
   }
 
-  function handleGoogleSignIn(name: string, credential?: string) {
+  async function handleGoogleSignIn(name: string, credential?: string) {
     setSignedInWithGoogle(true)
-    // Send credential to backend for verification + user upsert (non-blocking)
+    // Verify credential with backend before navigating so safety.isAuthenticated is set
     if (credential) {
-      safety.signIn(credential).catch(() => {
-        // Backend auth failed — app still works in unauthenticated mode
+      try {
+        await safety.signIn(credential)
+      } catch {
         console.warn('Backend auth failed — safety features may be limited')
-      })
+      }
     }
     handleWelcomeEnter(name)
   }
