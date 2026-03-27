@@ -326,15 +326,22 @@ export default function App() {
 
   async function handleGoogleSignIn(name: string, credential?: string) {
     setSignedInWithGoogle(true)
-    // Verify credential with backend before navigating so safety.isAuthenticated is set
+    let authResult = { isAuthenticated: false, hasProfile: false }
     if (credential) {
       try {
-        await safety.signIn(credential)
+        authResult = await safety.signIn(credential)
       } catch {
         console.warn('Backend auth failed — safety features may be limited')
       }
     }
-    handleWelcomeEnter(name)
+    // Use returned values directly — React state hasn't re-rendered yet
+    setUserName(name)
+    setActiveSection('yoga')
+    if (authResult.isAuthenticated && !authResult.hasProfile) {
+      setExperiencePhase('disclaimer')
+    } else {
+      setExperiencePhase('landing')
+    }
   }
 
   function handleSignOut() {

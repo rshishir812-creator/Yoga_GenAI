@@ -138,7 +138,7 @@ interface SafetyState {
   riskEvents: EscalationEvent[]
 
   // Actions
-  signIn: (credential: string) => Promise<void>
+  signIn: (credential: string) => Promise<{ isAuthenticated: boolean; hasProfile: boolean }>
   signOut: () => void
   submitHealthInput: (input: UserHealthInput) => Promise<UserRiskProfile>
   loadProfile: () => Promise<void>
@@ -191,7 +191,7 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
 
   // ── Auth actions ─────────────────────────────────────────────────────────
 
-  const signIn = useCallback(async (credential: string) => {
+  const signIn = useCallback(async (credential: string): Promise<{ isAuthenticated: boolean; hasProfile: boolean }> => {
     try {
       const user = await authGoogle(credential)
       setIsAuthenticated(true)
@@ -202,15 +202,19 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
       setPictureUrl(user.picture_url)
 
       // Try to load existing profile
+      let profileFound = false
       const profileData = await fetchProfile(user.google_sub)
       if (profileData.exists && profileData.profile) {
         setHasProfile(true)
         setRiskProfile(profileData.profile)
         setConsentGiven(profileData.consent_given ?? false)
+        profileFound = true
       }
+      return { isAuthenticated: true, hasProfile: profileFound }
     } catch (err) {
       console.error('Safety auth failed:', err)
       // Don't block the app — fall through to unauthenticated mode
+      return { isAuthenticated: false, hasProfile: false }
     }
   }, [])
 
