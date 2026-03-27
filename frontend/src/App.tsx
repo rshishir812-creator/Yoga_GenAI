@@ -26,8 +26,17 @@ import type { PoseSequence, SequenceStep } from './data/sequences'
 import BreathworkPage from './pages/BreathworkPage'
 import BreathworkSession from './pages/BreathworkSession'
 
+// Safety architecture imports
+import { useSafety } from './contexts/SafetyContext'
+import type { UserHealthInput } from './types/health'
+import DisclaimerScreen from './components/DisclaimerScreen'
+import HealthQuestionnaire from './components/HealthQuestionnaire'
+import SessionBriefing from './components/SessionBriefing'
+import PainCheckButton from './components/PainCheckButton'
+import RiskWarningBanner from './components/RiskWarningBanner'
+
 type FramingState = 'cameraLoading' | 'notFramed' | 'partiallyFramed' | 'handsNotRaised' | 'fullyFramed'
-type ExperiencePhase = 'welcome' | 'landing' | 'intro' | 'framing' | 'evaluating' | 'results' | 'sequence-complete' | 'breathwork-session'
+type ExperiencePhase = 'welcome' | 'landing' | 'disclaimer' | 'health-check' | 'session-briefing' | 'intro' | 'framing' | 'evaluating' | 'results' | 'sequence-complete' | 'breathwork-session'
 
 const REQUIRED_LANDMARKS: Record<
   string,
@@ -102,7 +111,9 @@ function newClientId(): string {
 }
 
 export default function App() {
+  const safety = useSafety()
   const [experiencePhase, setExperiencePhase] = useState<ExperiencePhase>('welcome')
+  const [healthLoading, setHealthLoading] = useState(false)
   const [activeSection, setActiveSection] = useState<'yoga' | 'breathwork'>('yoga')
   const [userName, setUserName] = useState('')
   const [signedInWithGoogle, setSignedInWithGoogle] = useState(false)
@@ -266,11 +277,62 @@ export default function App() {
   function handleWelcomeEnter(name: string) {
     setUserName(name)
     setActiveSection('yoga')
+    // If authenticated but no profile yet, show disclaimer → health check
+    if (safety.isAuthenticated && !safety.hasProfile) {
+      setExperiencePhase('disclaimer')
+    } else {
+      setExperiencePhase('landing')
+    }
+  }
+
+  // ── Safety flow handlers ──────────────────────────────────────────────────
+  function handleDisclaimerAccept() {
+    setExperiencePhase('health-check')
+  }
+
+  function handleDisclaimerDecline() {
+    // Skip safety — go to landing as guest
     setExperiencePhase('landing')
   }
 
-  function handleGoogleSignIn(name: string) {
+  async function handleHealthSubmit(input: UserHealthInput) {
+    if (!safety.isAuthenticated) {
+      setExperiencePhase('landing')
+      return
+    }
+    setHealthLoading(true)
+    try {
+      await safety.submitHealthInput(input)
+    } catch (err) {
+      console.error('Health profile submission failed:', err)
+    } finally {
+      setHealthLoading(false)
+      setExperiencePhase('landing')
+    }
+  }
+
+  function handleHealthBack() {
+    setExperiencePhase('disclaimer')
+  }
+
+  function handleSessionBriefingStart() {
+    setExperiencePhase('intro')
+  }
+
+  function handleSessionBriefingBack() {
+    setExperiencePhase('landing')
+    safety.resetSession()
+  }
+
+  function handleGoogleSignIn(name: string, credential?: string) {
     setSignedInWithGoogle(true)
+    // Send credential to backend for verification + user upsert (non-blocking)
+    if (credential) {
+      safety.signIn(credential).catch(() => {
+        // Backend auth failed — app still works in unauthenticated mode
+        console.warn('Backend auth failed — safety features may be limited')
+      })
+    }
     handleWelcomeEnter(name)
   }
 
@@ -281,6 +343,7 @@ export default function App() {
     setVisibleLandmarkCount(0)
     setSignedInWithGoogle(false)
     setUserName('')
+    safety.signOut()
     setExperiencePhase('welcome')
   }
 
@@ -687,6 +750,63 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* ── Disclaimer screen (first time after sign-in) ──────────────────── */}
+      <AnimatePresence>
+        {experiencePhase === 'disclaimer' && (
+          <div className="absolute inset-0 z-50">
+            <DisclaimerScreen
+              userName={userName}
+              onAccept={handleDisclaimerAccept}
+              onDecline={handleDisclaimerDecline}
+            />
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Health questionnaire ───────────────────────────────────────────── */}
+      <AnimatePresence>
+        {experiencePhase === 'health-check' && (
+          <div className="absolute inset-0 z-50">
+            <HealthQuestionnaire
+              onSubmit={handleHealthSubmit}
+              onBack={handleHealthBack}
+              isLoading={healthLoading}
+            />
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Session briefing (safety-filtered plan) ────────────────────────── */}
+      <AnimatePresence>
+        {experiencePhase === 'session-briefing' && safety.sessionPlan && (
+          <div className="absolute inset-0 z-50">
+            <SessionBriefing
+              plan={safety.sessionPlan}
+              onStart={handleSessionBriefingStart}
+              onBack={handleSessionBriefingBack}
+            />
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Risk warning banner (overlays during evaluation) ──────────────── */}
+      <AnimatePresence>
+        {safety.escalationEvent && experiencePhase === 'evaluating' && (
+          <RiskWarningBanner
+            event={safety.escalationEvent}
+            onDismiss={safety.dismissEscalation}
+            onPause={() => {
+              safety.dismissEscalation()
+              stopSession()
+            }}
+            onStop={() => {
+              safety.dismissEscalation()
+              handleEndSession()
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* ── Landing page ───────────────────────────────────────────────────── */}
       <AnimatePresence>
         {experiencePhase === 'landing' && (
@@ -792,7 +912,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* ── Practice area (framing + evaluating phases) ────────────────────── */}
-      {experiencePhase !== 'welcome' && experiencePhase !== 'landing' && experiencePhase !== 'intro' && experiencePhase !== 'sequence-complete' && experiencePhase !== 'breathwork-session' && (
+      {experiencePhase !== 'welcome' && experiencePhase !== 'landing' && experiencePhase !== 'intro' && experiencePhase !== 'sequence-complete' && experiencePhase !== 'breathwork-session' && experiencePhase !== 'disclaimer' && experiencePhase !== 'health-check' && experiencePhase !== 'session-briefing' && (
         <div className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden px-2 py-1.5 sm:px-3 sm:py-3">
           {/* Header — compact on mobile */}
           <div className="mb-1.5 flex items-center justify-between gap-2 sm:mb-3 sm:flex-wrap sm:gap-3">
@@ -868,6 +988,13 @@ export default function App() {
               >
                 End
               </button>
+
+              {/* Pain check button — safety architecture */}
+              {experiencePhase === 'evaluating' && safety.sessionId && (
+                <PainCheckButton
+                  onReport={(level) => safety.reportPain(expectedPose, level)}
+                />
+              )}
             </div>
           </div>
 
@@ -912,6 +1039,10 @@ export default function App() {
                       if (lms) {
                         const count = lms.filter((lm) => lm.visibility > 0.5).length
                         setVisibleLandmarkCount(count)
+                        // Feed safety risk extractor (throttled inside SafetyContext)
+                        if (experiencePhase === 'evaluating' && safety.sessionId) {
+                          safety.processFrame(lms, expectedPose)
+                        }
                       }
 
                       if (framingEnabled) {

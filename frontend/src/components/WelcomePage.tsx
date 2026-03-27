@@ -7,7 +7,7 @@ interface WelcomePageProps {
   userName?: string
   signedInWithGoogle?: boolean
   onEnter: (name: string) => void
-  onGoogleSignIn: (name: string) => void
+  onGoogleSignIn: (name: string, credential?: string) => void
   onSignOut: () => void
 }
 
@@ -45,7 +45,7 @@ export default function WelcomePage({
     try {
       const decoded = jwtDecode<GoogleJwtPayload>(response.credential)
       const displayName = decoded.given_name || decoded.name || 'Yogi'
-      onGoogleSignIn(displayName)
+      onGoogleSignIn(displayName, response.credential)
     } catch {
       setAuthError('Could not read your Google profile. Please try again.')
     }

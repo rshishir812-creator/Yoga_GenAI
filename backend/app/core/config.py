@@ -51,6 +51,13 @@ class Settings:
     stable_delta_threshold: float = float(get_env("STABLE_DELTA_THRESHOLD", "3.0") or "3.0")
     significant_delta_threshold: float = float(get_env("SIGNIFICANT_DELTA_THRESHOLD", "8.0") or "8.0")
 
+    # Supabase
+    supabase_url: str | None = get_env("SUPABASE_URL")
+    supabase_service_key: str | None = get_env("SUPABASE_SERVICE_KEY")
+
+    # Google OAuth (for backend JWT verification)
+    google_client_id: str | None = get_env("GOOGLE_CLIENT_ID")
+
     # CORS
     cors_origins: list[str] = get_csv_env(
         "CORS_ORIGINS",

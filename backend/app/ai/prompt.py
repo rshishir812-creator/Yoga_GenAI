@@ -159,3 +159,74 @@ def build_pose_feedback_prompt(
         f"Tone: warm, encouraging, knowledgeable. Like a teacher who sees you.\n"
         f"Do NOT say 'Great job!' as opener. No bullet points. Second person. Max 120 words."
     )
+
+
+# ── Safety-enriched prompt additions (Layer 6) ─────────────────────────────
+
+
+def build_risk_context_block(
+    risk_tier: str = "low",
+    conditions_summary: str = "",
+    session_risk_score: int = 0,
+    risk_signals_this_pose: list[str] | None = None,
+    modifications: str | None = None,
+) -> str:
+    """Build a risk context block to inject into the LLM prompt.
+
+    Only injected when session_risk_score >= 30 or risk_tier != 'low'.
+    """
+    if session_risk_score < 30 and risk_tier == "low":
+        return ""
+
+    parts: list[str] = ["\n== Safety Context =="]
+    parts.append(f"Risk tier: {risk_tier}")
+    if conditions_summary:
+        parts.append(f"Conditions: {conditions_summary}")
+    parts.append(f"Session risk score: {session_risk_score}/100")
+    if risk_signals_this_pose:
+        parts.append(f"Current risk signals: {', '.join(risk_signals_this_pose)}")
+    if modifications:
+        parts.append(f"Required modifications: {modifications}")
+    parts.append(
+        "\nIMPORTANT: Given the safety context above, prioritise gentle corrections "
+        "and recommend easing out of the pose if any risk signal is high. "
+        "Never push deeper alignment when risk signals are present. "
+        "Phrase safety cues in warm, non-alarming language."
+    )
+    return "\n".join(parts)
+
+
+def build_session_summary_prompt(
+    user_name: str,
+    session_duration_minutes: int,
+    poses_completed: list[dict],
+    final_risk_score: int,
+    risk_events: list[dict],
+    risk_tier: str = "low",
+) -> str:
+    """Build a prompt for the LLM to generate an end-of-session summary.
+
+    Called once at session end, written to session_logs.session_summary_llm.
+    """
+    pose_lines = []
+    for p in poses_completed:
+        name = p.get("name_en", p.get("pose_id", "?"))
+        score = p.get("peak_score", "?")
+        pose_lines.append(f"  - {name}: peak score {score}/100")
+
+    events_lines = []
+    for e in risk_events:
+        events_lines.append(f"  - {e.get('event_type', '?')}: {e.get('reason', '?')}")
+
+    return (
+        f"You are Madhu. The student {user_name} just finished a {session_duration_minutes}-minute "
+        f"yoga session.\n\n"
+        f"Risk tier: {risk_tier}\n"
+        f"Final session risk score: {final_risk_score}/100\n\n"
+        f"Poses completed:\n" + "\n".join(pose_lines) + "\n\n"
+        f"Risk events during session:\n"
+        + ("\n".join(events_lines) if events_lines else "  None") + "\n\n"
+        f"Write a warm 3-sentence summary of the session. Acknowledge what went well, "
+        f"note any safety adjustments that were made (without alarming), and give one "
+        f"encouraging tip for their next session. Second person, max 80 words."
+    )

@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import base64
+import json
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any as _Any
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel as _BM
+from pydantic import BaseModel as _BM, Field as _F
 
 from app.core.config import settings
 from app.models.contracts import EvaluateRequest, GeminiAlignmentResponse, TTSRequest, AssistantRequest, AssistantResponse, ProductSuggestion
@@ -19,6 +21,12 @@ from app.routers.breathwork import router as breathwork_router
 from app.services.evaluator import AlignmentEvaluator
 from app.services.assistant import AssistantService
 from app.services.pose_library import get_library, get_pose, check_pose_contraindications
+
+# Safety architecture imports
+from app.core.auth import verify_google_token, upsert_user, get_current_user, get_optional_user
+from safety.models import UserHealthInput, UserRiskProfile, SessionPlan
+from safety.safety_profiler import SafetyProfiler
+from session.session_orchestrator import SessionOrchestrator
 
 # Add backend/ to path so `pose_rules` package is importable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -279,3 +287,272 @@ def pose_contraindications(req: ContraindicationRequest) -> dict[str, _Any]:
         raise HTTPException(status_code=404, detail=f"Pose '{req.pose_id}' not found")
     warnings = check_pose_contraindications(pose, req.user_conditions)
     return {"warnings": warnings, "safe": len(warnings) == 0}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  SAFETY ARCHITECTURE — New routes
+# ═══════════════════════════════════════════════════════════════════════════
+
+safety_profiler = SafetyProfiler()
+session_orchestrator = SessionOrchestrator()
+
+
+# ── Auth ────────────────────────────────────────────────────────────────────
+
+class GoogleAuthRequest(_BM):
+    credential: str = _F(description="Google OAuth credential JWT from the frontend")
+
+
+class GoogleAuthResponse(_BM):
+    user_id: str
+    google_sub: str
+    email: str
+    display_name: str
+    picture_url: str
+
+
+@app.post("/api/auth/google", response_model=GoogleAuthResponse)
+def auth_google(req: GoogleAuthRequest) -> dict[str, _Any]:
+    """Verify a Google OAuth token and upsert the user."""
+    payload = verify_google_token(req.credential)
+    user = upsert_user(payload)
+    return {
+        "user_id": user["id"],
+        "google_sub": user["google_sub"],
+        "email": user.get("email", ""),
+        "display_name": user.get("display_name", ""),
+        "picture_url": user.get("picture_url", ""),
+    }
+
+
+# ── Safety Profile ──────────────────────────────────────────────────────────
+
+@app.post("/api/safety/profile")
+def create_or_update_safety_profile(
+    health_input: UserHealthInput,
+    user: dict = Depends(get_current_user),
+) -> dict[str, _Any]:
+    """Build a safety profile from questionnaire answers and persist it."""
+    from app.core.db import get_supabase
+
+    user_id = user["id"]
+    library = get_library()
+
+    # Check existing profile version
+    sb = get_supabase()
+    existing = (
+        sb.table("user_risk_profiles")
+        .select("profile_version")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    existing_version = existing.data[0]["profile_version"] if existing.data else 0
+
+    profile = safety_profiler.build_profile(
+        health_input,
+        library,
+        user_id=user_id,
+        existing_version=existing_version,
+    )
+
+    # Persist to DB
+    sb.table("user_risk_profiles").insert({
+        "user_id": user_id,
+        "risk_tier": profile.risk_tier,
+        "profile_json": profile.model_dump(mode="json"),
+        "consent_given": profile.consent_given,
+        "consent_at": profile.consent_timestamp.isoformat() if profile.consent_timestamp else None,
+        "profile_version": profile.profile_version,
+    }).execute()
+
+    return profile.model_dump(mode="json")
+
+
+@app.get("/api/safety/profile")
+def get_safety_profile(
+    user: dict = Depends(get_current_user),
+) -> dict[str, _Any]:
+    """Return the latest safety profile for the authenticated user."""
+    from app.core.db import get_supabase
+
+    sb = get_supabase()
+    result = (
+        sb.table("user_risk_profiles")
+        .select("profile_json, risk_tier, consent_given, profile_version")
+        .eq("user_id", user["id"])
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        return {"exists": False}
+    row = result.data[0]
+    return {
+        "exists": True,
+        "risk_tier": row["risk_tier"],
+        "consent_given": row["consent_given"],
+        "profile_version": row["profile_version"],
+        "profile": row["profile_json"],
+    }
+
+
+# ── Session Plan ────────────────────────────────────────────────────────────
+
+class SessionPlanRequest(_BM):
+    flow_id: str = _F(description="Sequence / flow identifier")
+    pose_ids: list[str] = _F(description="Ordered pose IDs for the session")
+
+
+@app.post("/api/session/plan")
+def create_session_plan(
+    req: SessionPlanRequest,
+    user: dict = Depends(get_current_user),
+) -> dict[str, _Any]:
+    """Create a safety-filtered session plan."""
+    from app.core.db import get_supabase
+    from data.progression_service import ProgressionService
+
+    user_id = user["id"]
+    sb = get_supabase()
+
+    # Load the user's latest profile
+    profile_result = (
+        sb.table("user_risk_profiles")
+        .select("profile_json")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not profile_result.data:
+        raise HTTPException(
+            status_code=400,
+            detail="No safety profile found. Complete the health questionnaire first.",
+        )
+
+    profile = UserRiskProfile(**profile_result.data[0]["profile_json"])
+
+    # Build library lookup
+    library = get_library()
+    lookup = {p["pose_id"]: p for p in library}
+
+    # Carry-over risk
+    prog = ProgressionService()
+    last_risk = prog.get_last_session_risk_score(user_id)
+
+    plan = session_orchestrator.build_plan(
+        profile=profile,
+        flow_id=req.flow_id,
+        requested_pose_ids=req.pose_ids,
+        library_lookup=lookup,
+        last_session_risk_score=last_risk,
+    )
+
+    # Persist session log (state=planned)
+    sb.table("session_logs").insert({
+        "id": plan.session_id,
+        "user_id": user_id,
+        "flow_id": plan.flow_id,
+        "state": "planned",
+        "session_plan_json": plan.model_dump(mode="json"),
+        "started_at": datetime.now(timezone.utc).isoformat(),
+    }).execute()
+
+    return plan.model_dump(mode="json")
+
+
+# ── Session State Updates ───────────────────────────────────────────────────
+
+class SessionStateUpdate(_BM):
+    state: str = _F(description="New state: started | completed | aborted")
+    final_risk_score: int = _F(default=0, description="Final accumulated risk score")
+    duration_seconds: int = _F(default=0, description="Total session duration")
+    pose_attempts: list[dict] = _F(default_factory=list, description="Pose attempt summaries")
+    risk_events: list[dict] = _F(default_factory=list, description="Risk events that occurred")
+
+
+@app.patch("/api/session/{session_id}/state")
+def update_session_state(
+    session_id: str,
+    update: SessionStateUpdate,
+    user: dict = Depends(get_current_user),
+) -> dict[str, str]:
+    """Update session state (start, complete, abort) and persist logs."""
+    from app.core.db import get_supabase
+
+    sb = get_supabase()
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Update session log
+    sb.table("session_logs").update({
+        "state": update.state,
+        "final_risk_score": update.final_risk_score,
+        "duration_seconds": update.duration_seconds,
+        "ended_at": now if update.state in ("completed", "aborted") else None,
+    }).eq("id", session_id).execute()
+
+    # Persist pose attempts
+    for attempt in update.pose_attempts:
+        sb.table("pose_attempt_logs").insert({
+            "session_id": session_id,
+            "pose_id": attempt.get("pose_id", ""),
+            "peak_score": attempt.get("peak_score", 0),
+            "avg_score": attempt.get("avg_score", 0),
+            "completed": attempt.get("completed", False),
+            "hold_seconds": attempt.get("hold_seconds", 0),
+            "violations_json": attempt.get("violations", []),
+            "llm_feedback": attempt.get("llm_feedback", ""),
+        }).execute()
+
+    # Persist risk events
+    for event in update.risk_events:
+        sb.table("risk_event_logs").insert({
+            "session_id": session_id,
+            "pose_id": event.get("pose_id", ""),
+            "event_type": event.get("event_type", "warn"),
+            "risk_score_at": event.get("risk_score_at", 0),
+            "signals_json": event.get("signals", []),
+            "reason": event.get("reason", ""),
+        }).execute()
+
+    return {"status": "ok"}
+
+
+# ── Pain Check ──────────────────────────────────────────────────────────────
+
+class PainCheckRequest(_BM):
+    session_id: str
+    pose_id: str = ""
+    pain_level: str = _F(description="none | mild | moderate | severe")
+
+
+@app.post("/api/session/pain-check")
+def record_pain_check(
+    req: PainCheckRequest,
+    user: dict = Depends(get_current_user),
+) -> dict[str, str]:
+    """Record a pain check during a session."""
+    from app.core.db import get_supabase
+
+    sb = get_supabase()
+    sb.table("pain_check_logs").insert({
+        "session_id": req.session_id,
+        "pose_id": req.pose_id,
+        "pain_level": req.pain_level,
+    }).execute()
+    return {"status": "ok"}
+
+
+# ── User Progression ────────────────────────────────────────────────────────
+
+@app.get("/api/user/progression")
+def user_progression(
+    user: dict = Depends(get_current_user),
+) -> dict[str, _Any]:
+    """Return the user's practice progression summary."""
+    from data.progression_service import ProgressionService
+
+    prog = ProgressionService()
+    return prog.get_user_progression(user["id"])
