@@ -56,7 +56,8 @@ class Settings:
     supabase_service_key: str | None = get_env("SUPABASE_SERVICE_KEY")
 
     # Google OAuth (for backend JWT verification)
-    google_client_id: str | None = get_env("GOOGLE_CLIENT_ID")
+    # Accept both GOOGLE_CLIENT_ID and VITE_GOOGLE_CLIENT_ID (Vercel shares frontend vars)
+    google_client_id: str | None = get_env("GOOGLE_CLIENT_ID") or get_env("VITE_GOOGLE_CLIENT_ID")
 
     # CORS
     cors_origins: list[str] = get_csv_env(
