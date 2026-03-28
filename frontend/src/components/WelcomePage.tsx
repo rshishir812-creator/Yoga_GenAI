@@ -6,6 +6,7 @@ import { jwtDecode } from 'jwt-decode'
 interface WelcomePageProps {
   userName?: string
   signedInWithGoogle?: boolean
+  isLoading?: boolean
   onEnter: (name: string) => void
   onGoogleSignIn: (name: string, credential?: string) => void
   onSignOut: () => void
@@ -21,6 +22,7 @@ interface GoogleJwtPayload {
 export default function WelcomePage({
   userName,
   signedInWithGoogle = false,
+  isLoading = false,
   onEnter,
   onGoogleSignIn,
   onSignOut,
@@ -103,7 +105,22 @@ export default function WelcomePage({
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4, duration: 0.5 }}
         >
-          {signedInWithGoogle && userName ? (
+          {isLoading ? (
+            <motion.div
+              className="rounded-3xl border border-emerald-200/70 bg-white/90 p-8 text-center shadow-lg shadow-emerald-500/10 backdrop-blur dark:border-emerald-400/20 dark:bg-white/5"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+            >
+              <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                Setting up your session…
+              </p>
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                Verifying your account and loading your profile
+              </p>
+            </motion.div>
+          ) : signedInWithGoogle && userName ? (
             <motion.div
               className="rounded-3xl border border-emerald-200/70 bg-white/90 p-5 text-left shadow-lg shadow-emerald-500/10 backdrop-blur dark:border-emerald-400/20 dark:bg-white/5"
               initial={{ opacity: 0, y: 8 }}

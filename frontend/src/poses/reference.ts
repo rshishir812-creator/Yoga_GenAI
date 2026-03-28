@@ -1,63 +1,92 @@
 import type { ExpectedPose, FocusArea, Severity } from '../api/client'
 
+export type PoseCategory = 'standing' | 'sun-salutation' | 'balance' | 'seated' | 'kneeling' | 'backbend' | 'supine' | 'arms'
+
+export const POSE_CATEGORY_LABELS: Record<PoseCategory, { label: string; emoji: string; order: number }> = {
+  'sun-salutation': { label: 'Sun Salutation',    emoji: '☀️', order: 0 },
+  'standing':       { label: 'Standing Poses',    emoji: '🧍', order: 1 },
+  'balance':        { label: 'Balance',            emoji: '🌳', order: 2 },
+  'kneeling':       { label: 'Kneeling & All-Fours', emoji: '🐱', order: 3 },
+  'seated':         { label: 'Seated & Floor',     emoji: '🪷', order: 4 },
+  'arms':           { label: 'Arms & Upper Body',  emoji: '💪', order: 5 },
+  'backbend':       { label: 'Prone & Backbends',  emoji: '🐍', order: 6 },
+  'supine':         { label: 'Supine & Cooldown',  emoji: '🧘', order: 7 },
+}
+
 export type PoseReference = {
   pose: ExpectedPose
   kind: 'image' | 'video'
   src: string
   /** Stable pose_id matching backend pose_library.json */
   poseId?: string
+  /** Category for grouping on the landing page */
+  category: PoseCategory
 }
 
 // ── Available reference images (images we actually ship) ───────────────────
 export const POSE_REFERENCES: PoseReference[] = [
-  { pose: 'Pranamasana',            kind: 'image', src: '/poses/train/Pranamasana.jpeg',                poseId: 'pranamasana' },
-  { pose: 'Hasta Uttanasana',       kind: 'image', src: '/poses/train/Hasta%20Uttanasana.png',          poseId: 'hasta_uttanasana' },
-  { pose: 'Padahastasana',          kind: 'image', src: '/poses/train/Padahastasana.png',               poseId: 'padahastasana' },
-  { pose: 'Ashwa Sanchalanasana',   kind: 'image', src: '/poses/train/Ashwa%20Sanchalanasana.png',      poseId: 'ashwa_sanchalanasana' },
-  { pose: 'Tadasana',               kind: 'image', src: '/poses/train/Tadasana.png',                    poseId: 'mountain_pose' },
-  { pose: 'Warrior II',             kind: 'image', src: '/poses/train/Warrior.png',                     poseId: 'warrior_ii' },
-  { pose: 'Down Dog',               kind: 'image', src: '/poses/train/Downdog.png',                     poseId: 'down_dog' },
-  { pose: 'Goddess',                kind: 'image', src: '/poses/train/Godess.png' },
-  { pose: 'Plank',                  kind: 'image', src: '/poses/train/Plank.png',                       poseId: 'plank_pose' },
-  // ── New poses (no reference image yet — use placeholder) ─────────────────
-  { pose: 'malasana',               kind: 'image', src: '',   poseId: 'malasana' },
-  { pose: 'Bhujangasana',           kind: 'image', src: '',   poseId: 'bhujangasana' },
-  { pose: 'Utkatasana',             kind: 'image', src: '',   poseId: 'utkatasana' },
-  { pose: 'Virabhadrasana I',       kind: 'image', src: '',   poseId: 'virabhadrasana_i' },
-  { pose: 'Trikonasana',            kind: 'image', src: '',   poseId: 'trikonasana' },
-  { pose: 'Utthita Parsvakonasana', kind: 'image', src: '',   poseId: 'utthita_parsvakonasana_beginner' },
-  { pose: 'Prasarita Padottanasana',kind: 'image', src: '',   poseId: 'prasarita_padottanasana' },
-  { pose: 'Ardha Uttanasana',       kind: 'image', src: '',   poseId: 'ardha_uttanasana' },
-  { pose: 'Uttanasana',             kind: 'image', src: '',   poseId: 'uttanasana' },
-  { pose: 'Parsvottanasana',        kind: 'image', src: '',   poseId: 'parsvottanasana_short_stance' },
-  { pose: 'Vrksasana',              kind: 'image', src: '',   poseId: 'vrksasana_low_foot' },
-  { pose: 'Garudasana Arms',        kind: 'image', src: '',   poseId: 'garudasana_arms' },
-  { pose: 'Sukhasana',              kind: 'image', src: '',   poseId: 'sukhasana' },
-  { pose: 'Baddha Konasana',        kind: 'image', src: '',   poseId: 'baddha_konasana' },
-  { pose: 'Janu Sirsasana',         kind: 'image', src: '',   poseId: 'janu_sirsasana_left' },
-  { pose: 'Paschimottanasana',      kind: 'image', src: '',   poseId: 'paschimottanasana' },
-  { pose: 'Upavistha Konasana',     kind: 'image', src: '',   poseId: 'upavistha_konasana_upright' },
-  { pose: 'Gomukhasana Arms',       kind: 'image', src: '',   poseId: 'gomukhasana_arms' },
-  { pose: 'Dandasana',              kind: 'image', src: '',   poseId: 'dandasana' },
-  { pose: 'Vajrasana',              kind: 'image', src: '',   poseId: 'vajrasana' },
-  { pose: 'Marjaryasana',           kind: 'image', src: '',   poseId: 'marjaryasana_cat' },
-  { pose: 'Bitilasana',             kind: 'image', src: '',   poseId: 'bitilasana_cow' },
-  { pose: 'Anjaneyasana',           kind: 'image', src: '',   poseId: 'anjaneyasana_left' },
-  { pose: 'Ardha Hanumanasana',     kind: 'image', src: '',   poseId: 'ardha_hanumanasana_left' },
-  { pose: 'Parsva Balasana',        kind: 'image', src: '',   poseId: 'parsva_balasana_left' },
-  { pose: 'Salamba Bhujangasana',   kind: 'image', src: '',   poseId: 'sphinx_pose' },
-  { pose: 'Salabhasana',            kind: 'image', src: '',   poseId: 'salabhasana' },
-  { pose: 'Makarasana',             kind: 'image', src: '',   poseId: 'makarasana' },
-  { pose: 'Setu Bandhasana',        kind: 'image', src: '',   poseId: 'setu_bandhasana' },
-  { pose: 'Apanasana',              kind: 'image', src: '',   poseId: 'apanasana' },
-  { pose: 'Supta Matsyendrasana',   kind: 'image', src: '',   poseId: 'supta_matsyendrasana_left' },
-  { pose: 'Savasana',               kind: 'image', src: '',   poseId: 'savasana' },
-  { pose: 'Tandem Balance',         kind: 'image', src: '',   poseId: 'heel_to_toe_balance' },
-  { pose: 'Natarajasana Prep',      kind: 'image', src: '',   poseId: 'natarajasana_prep (right)' },
-  { pose: 'Virabhadrasana III Prep', kind: 'image', src: '',  poseId: 'virabhadrasana_iii_prep(right)' },
-  { pose: 'Parvatasana Prep',       kind: 'image', src: '',   poseId: 'parvatasana_tabletop' },
-  { pose: 'Ananda Balasana',        kind: 'image', src: '',   poseId: 'ananda_balasana' },
-  { pose: 'Supta Baddha Konasana',  kind: 'image', src: '',   poseId: 'supta_baddha_konasana' },
+  // ── Sun Salutation ───────────────────────────────────────────────────────
+  { pose: 'Pranamasana',            kind: 'image', src: '/poses/train/Pranamasana.jpeg',                poseId: 'pranamasana',            category: 'sun-salutation' },
+  { pose: 'Hasta Uttanasana',       kind: 'image', src: '/poses/train/Hasta%20Uttanasana.png',          poseId: 'hasta_uttanasana',       category: 'sun-salutation' },
+  { pose: 'Padahastasana',          kind: 'image', src: '/poses/train/Padahastasana.png',               poseId: 'padahastasana',          category: 'sun-salutation' },
+  { pose: 'Ashwa Sanchalanasana',   kind: 'image', src: '/poses/train/Ashwa%20Sanchalanasana.png',      poseId: 'ashwa_sanchalanasana',   category: 'sun-salutation' },
+  { pose: 'Plank',                  kind: 'image', src: '/poses/train/Plank.png',                       poseId: 'plank_pose',             category: 'sun-salutation' },
+  { pose: 'Down Dog',               kind: 'image', src: '/poses/train/Downdog.png',                     poseId: 'down_dog',               category: 'sun-salutation' },
+
+  // ── Standing ─────────────────────────────────────────────────────────────
+  { pose: 'Tadasana',               kind: 'image', src: '/poses/train/Tadasana.png',                    poseId: 'mountain_pose',          category: 'standing' },
+  { pose: 'Utkatasana',             kind: 'image', src: '',   poseId: 'utkatasana',                     category: 'standing' },
+  { pose: 'Warrior II',             kind: 'image', src: '/poses/train/Warrior.png',                     poseId: 'warrior_ii',             category: 'standing' },
+  { pose: 'Virabhadrasana I',       kind: 'image', src: '',   poseId: 'virabhadrasana_i',               category: 'standing' },
+  { pose: 'Trikonasana',            kind: 'image', src: '',   poseId: 'trikonasana',                    category: 'standing' },
+  { pose: 'Utthita Parsvakonasana', kind: 'image', src: '',   poseId: 'utthita_parsvakonasana_beginner', category: 'standing' },
+  { pose: 'Prasarita Padottanasana',kind: 'image', src: '',   poseId: 'prasarita_padottanasana',        category: 'standing' },
+  { pose: 'Ardha Uttanasana',       kind: 'image', src: '',   poseId: 'ardha_uttanasana',               category: 'standing' },
+  { pose: 'Uttanasana',             kind: 'image', src: '',   poseId: 'uttanasana',                     category: 'standing' },
+  { pose: 'Parsvottanasana',        kind: 'image', src: '',   poseId: 'parsvottanasana_short_stance',   category: 'standing' },
+  { pose: 'Goddess',                kind: 'image', src: '/poses/train/Godess.png',                      category: 'standing' },
+  { pose: 'malasana',               kind: 'image', src: '',   poseId: 'malasana',                       category: 'standing' },
+
+  // ── Balance ──────────────────────────────────────────────────────────────
+  { pose: 'Vrksasana',              kind: 'image', src: '',   poseId: 'vrksasana_low_foot',             category: 'balance' },
+  { pose: 'Tandem Balance',         kind: 'image', src: '',   poseId: 'heel_to_toe_balance',            category: 'balance' },
+  { pose: 'Natarajasana Prep',      kind: 'image', src: '',   poseId: 'natarajasana_prep (right)',      category: 'balance' },
+  { pose: 'Virabhadrasana III Prep', kind: 'image', src: '',  poseId: 'virabhadrasana_iii_prep(right)', category: 'balance' },
+
+  // ── Kneeling & All-Fours ─────────────────────────────────────────────────
+  { pose: 'Marjaryasana',           kind: 'image', src: '',   poseId: 'marjaryasana_cat',               category: 'kneeling' },
+  { pose: 'Bitilasana',             kind: 'image', src: '',   poseId: 'bitilasana_cow',                 category: 'kneeling' },
+  { pose: 'Anjaneyasana',           kind: 'image', src: '',   poseId: 'anjaneyasana_left',              category: 'kneeling' },
+  { pose: 'Ardha Hanumanasana',     kind: 'image', src: '',   poseId: 'ardha_hanumanasana_left',        category: 'kneeling' },
+  { pose: 'Parsva Balasana',        kind: 'image', src: '',   poseId: 'parsva_balasana_left',           category: 'kneeling' },
+  { pose: 'Vajrasana',              kind: 'image', src: '',   poseId: 'vajrasana',                      category: 'kneeling' },
+  { pose: 'Parvatasana Prep',       kind: 'image', src: '',   poseId: 'parvatasana_tabletop',           category: 'kneeling' },
+
+  // ── Seated & Floor ───────────────────────────────────────────────────────
+  { pose: 'Sukhasana',              kind: 'image', src: '',   poseId: 'sukhasana',                      category: 'seated' },
+  { pose: 'Baddha Konasana',        kind: 'image', src: '',   poseId: 'baddha_konasana',                category: 'seated' },
+  { pose: 'Janu Sirsasana',         kind: 'image', src: '',   poseId: 'janu_sirsasana_left',            category: 'seated' },
+  { pose: 'Paschimottanasana',      kind: 'image', src: '',   poseId: 'paschimottanasana',              category: 'seated' },
+  { pose: 'Upavistha Konasana',     kind: 'image', src: '',   poseId: 'upavistha_konasana_upright',     category: 'seated' },
+  { pose: 'Dandasana',              kind: 'image', src: '',   poseId: 'dandasana',                      category: 'seated' },
+
+  // ── Arms & Upper Body ────────────────────────────────────────────────────
+  { pose: 'Garudasana Arms',        kind: 'image', src: '',   poseId: 'garudasana_arms',                category: 'arms' },
+  { pose: 'Gomukhasana Arms',       kind: 'image', src: '',   poseId: 'gomukhasana_arms',               category: 'arms' },
+
+  // ── Prone & Backbends ────────────────────────────────────────────────────
+  { pose: 'Bhujangasana',           kind: 'image', src: '',   poseId: 'bhujangasana',                   category: 'backbend' },
+  { pose: 'Salamba Bhujangasana',   kind: 'image', src: '',   poseId: 'sphinx_pose',                    category: 'backbend' },
+  { pose: 'Salabhasana',            kind: 'image', src: '',   poseId: 'salabhasana',                    category: 'backbend' },
+  { pose: 'Makarasana',             kind: 'image', src: '',   poseId: 'makarasana',                     category: 'backbend' },
+
+  // ── Supine & Cooldown ────────────────────────────────────────────────────
+  { pose: 'Setu Bandhasana',        kind: 'image', src: '',   poseId: 'setu_bandhasana',                category: 'supine' },
+  { pose: 'Apanasana',              kind: 'image', src: '',   poseId: 'apanasana',                      category: 'supine' },
+  { pose: 'Supta Matsyendrasana',   kind: 'image', src: '',   poseId: 'supta_matsyendrasana_left',      category: 'supine' },
+  { pose: 'Ananda Balasana',        kind: 'image', src: '',   poseId: 'ananda_balasana',                category: 'supine' },
+  { pose: 'Supta Baddha Konasana',  kind: 'image', src: '',   poseId: 'supta_baddha_konasana',          category: 'supine' },
+  { pose: 'Savasana',               kind: 'image', src: '',   poseId: 'savasana',                       category: 'supine' },
 ]
 
 /** Lookup helper — returns the first reference for a given pose name. */

@@ -4,7 +4,7 @@
  * Holds: auth state, risk profile, session plan, consent, risk score.
  * Provides methods for sign-in, questionnaire submit, session plan creation.
  */
-import React, { createContext, useCallback, useContext, useRef, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type {
   UserHealthInput,
   UserRiskProfile,
@@ -161,13 +161,19 @@ export function useSafety(): SafetyState {
 // ── Provider ───────────────────────────────────────────────────────────────
 
 export function SafetyProvider({ children }: { children: React.ReactNode }) {
-  // Auth
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [userId, setUserId] = useState('')
-  const [googleSub, setGoogleSub] = useState('')
-  const [email, setEmail] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [pictureUrl, setPictureUrl] = useState('')
+  // Auth — restore from localStorage for returning users
+  const stored = (() => {
+    try {
+      const raw = localStorage.getItem('oorjakull_auth')
+      return raw ? JSON.parse(raw) as { googleSub: string; userId: string; email: string; displayName: string; pictureUrl: string } : null
+    } catch { return null }
+  })()
+  const [isAuthenticated, setIsAuthenticated] = useState(!!stored)
+  const [userId, setUserId] = useState(stored?.userId ?? '')
+  const [googleSub, setGoogleSub] = useState(stored?.googleSub ?? '')
+  const [email, setEmail] = useState(stored?.email ?? '')
+  const [displayName, setDisplayName] = useState(stored?.displayName ?? '')
+  const [pictureUrl, setPictureUrl] = useState(stored?.pictureUrl ?? '')
 
   // Profile
   const [hasProfile, setHasProfile] = useState(false)
@@ -201,6 +207,14 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
       setDisplayName(user.display_name)
       setPictureUrl(user.picture_url)
 
+      // Persist for returning users
+      try {
+        localStorage.setItem('oorjakull_auth', JSON.stringify({
+          googleSub: user.google_sub, userId: user.user_id,
+          email: user.email, displayName: user.display_name, pictureUrl: user.picture_url,
+        }))
+      } catch { /* quota exceeded — non-critical */ }
+
       // Try to load existing profile
       let profileFound = false
       const profileData = await fetchProfile(user.google_sub)
@@ -213,7 +227,6 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
       return { isAuthenticated: true, hasProfile: profileFound }
     } catch (err) {
       console.error('Safety auth failed:', err)
-      // Don't block the app — fall through to unauthenticated mode
       return { isAuthenticated: false, hasProfile: false }
     }
   }, [])
@@ -236,6 +249,20 @@ export function SafetyProvider({ children }: { children: React.ReactNode }) {
     setRiskEvents([])
     extractorRef.current.reset()
     scorerRef.current.reset()
+    try { localStorage.removeItem('oorjakull_auth') } catch { /* ok */ }
+  }, [])
+
+  // On mount: if we restored auth from localStorage, try to load profile
+  useEffect(() => {
+    if (!stored?.googleSub) return
+    fetchProfile(stored.googleSub).then(data => {
+      if (data.exists && data.profile) {
+        setHasProfile(true)
+        setRiskProfile(data.profile)
+        setConsentGiven(data.consent_given ?? false)
+      }
+    }).catch(() => { /* non-critical — user can still use the app */ })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ── Profile actions ──────────────────────────────────────────────────────

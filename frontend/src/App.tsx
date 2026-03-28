@@ -114,6 +114,7 @@ export default function App() {
   const safety = useSafety()
   const [experiencePhase, setExperiencePhase] = useState<ExperiencePhase>('welcome')
   const [healthLoading, setHealthLoading] = useState(false)
+  const [authLoading, setAuthLoading] = useState(false)
   const [activeSection, setActiveSection] = useState<'yoga' | 'breathwork'>('yoga')
   const [userName, setUserName] = useState('')
   const [signedInWithGoogle, setSignedInWithGoogle] = useState(false)
@@ -291,7 +292,9 @@ export default function App() {
   }
 
   function handleDisclaimerDecline() {
-    // Skip safety — go to landing as guest
+    // User declined medical disclaimer — proceed as unauthenticated guest
+    safety.signOut()
+    setSignedInWithGoogle(false)
     setExperiencePhase('landing')
   }
 
@@ -326,6 +329,8 @@ export default function App() {
 
   async function handleGoogleSignIn(name: string, credential?: string) {
     setSignedInWithGoogle(true)
+    setUserName(name)            // Set immediately so WelcomePage shows "Welcome back"
+    setAuthLoading(true)         // Show spinner instead of Google button
     let authResult = { isAuthenticated: false, hasProfile: false }
     if (credential) {
       try {
@@ -334,8 +339,7 @@ export default function App() {
         console.warn('Backend auth failed — safety features may be limited')
       }
     }
-    // Use returned values directly — React state hasn't re-rendered yet
-    setUserName(name)
+    setAuthLoading(false)
     setActiveSection('yoga')
     if (authResult.isAuthenticated && !authResult.hasProfile) {
       setExperiencePhase('disclaimer')
@@ -361,7 +365,8 @@ export default function App() {
     resetAlignmentState()
     setVisibleLandmarkCount(0)
     setActiveSection('yoga')
-    setExperiencePhase('welcome')
+    // Stay on landing if signed in — only go to welcome if they're a guest
+    setExperiencePhase(signedInWithGoogle ? 'landing' : 'welcome')
   }
 
   function handleSectionChange(section: 'yoga' | 'breathwork') {
@@ -750,6 +755,7 @@ export default function App() {
             <WelcomePage
               userName={userName}
               signedInWithGoogle={signedInWithGoogle}
+              isLoading={authLoading}
               onEnter={handleWelcomeEnter}
               onGoogleSignIn={handleGoogleSignIn}
               onSignOut={handleSignOut}
