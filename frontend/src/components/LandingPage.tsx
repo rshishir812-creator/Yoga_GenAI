@@ -19,9 +19,49 @@ const cardVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' as const } },
 }
 
+// ── SVG Icon component ─────────────────────────────────────────────────────
+
+function Icon({ name, className = 'h-5 w-5' }: { name: string; className?: string }) {
+  const p = { className, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  switch (name) {
+    /* ── Category icons ─────────────────────────────────── */
+    case 'sun': return (<svg {...p}><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"/></svg>)
+    case 'person-standing': return (<svg {...p}><circle cx="12" cy="5" r="2"/><path d="M12 7v6m-3 8l3-5 3 5m-6-8h6"/></svg>)
+    case 'tree': return (<svg {...p}><path d="M12 22v-6m-5 0l5-8 5 8H7zm2-8l3-5 3 5"/></svg>)
+    case 'person-kneeling': return (<svg {...p}><circle cx="11" cy="4" r="2"/><path d="M11 6v4l-4 4m4-4l4 2v4m-4-6l-2 8"/></svg>)
+    case 'flower': return (<svg {...p}><circle cx="12" cy="12" r="2"/><path d="M12 6a4 4 0 0 1 0 6 4 4 0 0 1 0-6zm5.2 1.8a4 4 0 0 1-3.2 5.2 4 4 0 0 1 3.2-5.2zM6.8 7.8a4 4 0 0 1 3.2 5.2 4 4 0 0 1-3.2-5.2zm10.4 4.4a4 4 0 0 1-3.2 5.2 4 4 0 0 1 3.2-5.2zM6.8 12.2a4 4 0 0 1 3.2 5.2A4 4 0 0 1 6.8 12.2z"/></svg>)
+    case 'hand-raised': return (<svg {...p}><path d="M18 11V6a1 1 0 0 0-2 0m0 5V4a1 1 0 0 0-2 0m0 7V5a1 1 0 0 0-2 0m0 6V7a1 1 0 0 0-2 0v9a5 5 0 0 0 10 0v-4a1 1 0 0 0-2 0"/></svg>)
+    case 'curve': return (<svg {...p}><path d="M4 20c0-10 4-16 8-16s8 6 8 16"/></svg>)
+    case 'crescent-moon': return (<svg {...p}><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>)
+    /* ── Sequence group icons ───────────────────────────── */
+    case 'waves': return (<svg {...p}><path d="M2 6c2-1.5 4 1.5 6 0s4-1.5 6 0 4 1.5 6 0M2 12c2-1.5 4 1.5 6 0s4-1.5 6 0 4 1.5 6 0M2 18c2-1.5 4 1.5 6 0s4-1.5 6 0 4 1.5 6 0"/></svg>)
+    case 'shield': return (<svg {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>)
+    case 'leaf': return (<svg {...p}><path d="M12 22c-4-2-8-7-8-12C4 4 12 2 12 2s8 2 8 8c0 5-4 10-8 12z"/><path d="M12 10v8m-3-5c1 1 2 2 3 2s2-1 3-2"/></svg>)
+    /* ── Sequence card icons ────────────────────────────── */
+    case 'sunrise': return (<svg {...p}><path d="M12 2v4m-7.07.93L6.34 8.34m12.73-1.41L17.66 8.34M2 16h2m16 0h2"/><path d="M8 16a4 4 0 0 1 8 0"/><path d="M2 20h20"/></svg>)
+    case 'target': return (<svg {...p}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>)
+    case 'spine': return (<svg {...p}><path d="M12 2v20"/><circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="9" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="13" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="17" r="1.5" fill="currentColor" stroke="none"/></svg>)
+    case 'butterfly': return (<svg {...p}><path d="M12 22V2m0 10C9 8 4 6 4 10s5 6 8 6m0-4c3-4 8-6 8-2s-5 6-8 6"/></svg>)
+    default: return (<svg {...p}><circle cx="12" cy="12" r="8"/></svg>)
+  }
+}
+
+// ── Sequence icon mapping (per sequence id) ────────────────────────────────
+
+const SEQUENCE_ICON_MAP: Record<string, string> = {
+  'surya-namaskar-beginner': 'sun',
+  'gentle-morning':          'sunrise',
+  'standing-strength':       'person-standing',
+  'core-balance':            'target',
+  'back-strength':           'spine',
+  'hip-opening':             'butterfly',
+  'relaxation-recovery':     'crescent-moon',
+  'seated-flexibility':      'flower',
+}
+
 // ── Sequence theme grouping ────────────────────────────────────────────────
 
-type SequenceGroup = { label: string; emoji: string; sequences: PoseSequence[] }
+type SequenceGroup = { label: string; icon: string; sequences: PoseSequence[] }
 
 function groupSequences(sequences: PoseSequence[]): SequenceGroup[] {
   const flowIds = new Set(['surya-namaskar-beginner', 'gentle-morning', 'standing-strength'])
@@ -40,15 +80,15 @@ function groupSequences(sequences: PoseSequence[]): SequenceGroup[] {
   }
 
   const groups: SequenceGroup[] = []
-  if (flow.length)     groups.push({ label: 'Flow Sequences',           emoji: '🌊', sequences: flow })
-  if (strength.length) groups.push({ label: 'Strength & Balance',       emoji: '💪', sequences: strength })
-  if (rest.length)     groups.push({ label: 'Flexibility & Relaxation', emoji: '🧘', sequences: rest })
+  if (flow.length)     groups.push({ label: 'Flow Sequences',           icon: 'waves',  sequences: flow })
+  if (strength.length) groups.push({ label: 'Strength & Balance',       icon: 'shield', sequences: strength })
+  if (rest.length)     groups.push({ label: 'Flexibility & Relaxation', icon: 'leaf',   sequences: rest })
   return groups
 }
 
 // ── Pose category grouping ─────────────────────────────────────────────────
 
-type PoseGroup = { category: PoseCategory; label: string; emoji: string; poses: string[] }
+type PoseGroup = { category: PoseCategory; label: string; icon: string; poses: string[] }
 
 function groupPoses(poses: string[]): PoseGroup[] {
   const poseSet = new Set(poses)
@@ -77,14 +117,14 @@ function groupPoses(poses: string[]): PoseGroup[] {
   )
   for (const [cat, catPoses] of entries) {
     const meta = POSE_CATEGORY_LABELS[cat]
-    groups.push({ category: cat, label: meta.label, emoji: meta.emoji, poses: catPoses })
+    groups.push({ category: cat, label: meta.label, icon: meta.icon, poses: catPoses })
   }
   return groups
 }
 
 // ── Sequence card (extracted for reuse) ────────────────────────────────────
 
-function SequenceCard({ seq, onClick }: { seq: PoseSequence; onClick: () => void }) {
+function SequenceCard({ seq, icon, onClick }: { seq: PoseSequence; icon: string; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -93,8 +133,8 @@ function SequenceCard({ seq, onClick }: { seq: PoseSequence; onClick: () => void
     >
       <div className="pointer-events-none absolute -right-4 -top-4 h-24 w-24 rounded-full bg-amber-400/10 blur-2xl transition-all group-hover:bg-amber-400/20" />
       <div className="relative flex items-start gap-4">
-        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-2xl shadow-lg shadow-amber-500/30">
-          ☀️
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/30">
+          <Icon name={icon} className="h-6 w-6" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -192,7 +232,7 @@ export default function LandingPage(props: {
             {sequenceGroups.map((group) => (
               <div key={group.label} className="mb-8 last:mb-0">
                 <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
-                  <span>{group.emoji}</span>
+                  <Icon name={group.icon} className="h-4 w-4" />
                   {group.label}
                 </h3>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -200,6 +240,7 @@ export default function LandingPage(props: {
                     <SequenceCard
                       key={seq.id}
                       seq={seq}
+                      icon={SEQUENCE_ICON_MAP[seq.id] ?? 'sun'}
                       onClick={() => onSelectSequence(seq)}
                     />
                   ))}
@@ -228,7 +269,7 @@ export default function LandingPage(props: {
             transition={{ duration: 0.45, delay: 0.15 }}
           >
             <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
-              <span>{group.emoji}</span>
+              <Icon name={group.icon} className="h-4 w-4" />
               {group.label}
               <span className="ml-1 text-xs font-normal text-slate-400 dark:text-slate-500">
                 ({group.poses.length})

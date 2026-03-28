@@ -2,15 +2,15 @@ import type { ExpectedPose, FocusArea, Severity } from '../api/client'
 
 export type PoseCategory = 'standing' | 'sun-salutation' | 'balance' | 'seated' | 'kneeling' | 'backbend' | 'supine' | 'arms'
 
-export const POSE_CATEGORY_LABELS: Record<PoseCategory, { label: string; emoji: string; order: number }> = {
-  'sun-salutation': { label: 'Sun Salutation',    emoji: '☀️', order: 0 },
-  'standing':       { label: 'Standing Poses',    emoji: '🧍', order: 1 },
-  'balance':        { label: 'Balance',            emoji: '🌳', order: 2 },
-  'kneeling':       { label: 'Kneeling & All-Fours', emoji: '🐱', order: 3 },
-  'seated':         { label: 'Seated & Floor',     emoji: '🪷', order: 4 },
-  'arms':           { label: 'Arms & Upper Body',  emoji: '💪', order: 5 },
-  'backbend':       { label: 'Prone & Backbends',  emoji: '🐍', order: 6 },
-  'supine':         { label: 'Supine & Cooldown',  emoji: '🧘', order: 7 },
+export const POSE_CATEGORY_LABELS: Record<PoseCategory, { label: string; icon: string; order: number }> = {
+  'sun-salutation': { label: 'Sun Salutation',       icon: 'sun',             order: 0 },
+  'standing':       { label: 'Standing Poses',       icon: 'person-standing', order: 1 },
+  'balance':        { label: 'Balance',               icon: 'tree',            order: 2 },
+  'kneeling':       { label: 'Kneeling & All-Fours', icon: 'person-kneeling', order: 3 },
+  'seated':         { label: 'Seated & Floor',        icon: 'flower',          order: 4 },
+  'arms':           { label: 'Arms & Upper Body',    icon: 'hand-raised',     order: 5 },
+  'backbend':       { label: 'Prone & Backbends',    icon: 'curve',           order: 6 },
+  'supine':         { label: 'Supine & Cooldown',    icon: 'crescent-moon',   order: 7 },
 }
 
 export type PoseReference = {

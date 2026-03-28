@@ -365,8 +365,7 @@ export default function App() {
     resetAlignmentState()
     setVisibleLandmarkCount(0)
     setActiveSection('yoga')
-    // Stay on landing if signed in — only go to welcome if they're a guest
-    setExperiencePhase(signedInWithGoogle ? 'landing' : 'welcome')
+    setExperiencePhase('welcome')
   }
 
   function handleSectionChange(section: 'yoga' | 'breathwork') {
