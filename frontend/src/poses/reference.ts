@@ -56,7 +56,7 @@ export const POSE_REFERENCES: PoseReference[] = [
   // ── Kneeling & All-Fours ─────────────────────────────────────────────────
   { pose: 'Marjaryasana',           kind: 'image', src: '',   poseId: 'marjaryasana_cat',               category: 'kneeling' },
   { pose: 'Bitilasana',             kind: 'image', src: '',   poseId: 'bitilasana_cow',                 category: 'kneeling' },
-  { pose: 'Anjaneyasana',           kind: 'image', src: '',   poseId: 'anjaneyasana_left',              category: 'kneeling' },
+  { pose: 'Anjaneyasana',           kind: 'image', src: '/poses/train/Anjaneyasana.png',              poseId: 'anjaneyasana_left',              category: 'kneeling' },
   { pose: 'Ardha Hanumanasana',     kind: 'image', src: '',   poseId: 'ardha_hanumanasana_left',        category: 'kneeling' },
   { pose: 'Parsva Balasana',        kind: 'image', src: '',   poseId: 'parsva_balasana_left',           category: 'kneeling' },
   { pose: 'Vajrasana',              kind: 'image', src: '',   poseId: 'vajrasana',                      category: 'kneeling' },
