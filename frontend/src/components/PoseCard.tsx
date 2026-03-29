@@ -37,24 +37,24 @@ export default function PoseCard(props: {
       {/* ── Top accent gradient bar ─────────────────────────────────────── */}
       <div className={`h-1 w-full bg-gradient-to-r ${accent}`} />
 
-      {/* ── Credit cost badge (top-right) ───────────────────────────────── */}
-      {showCreditCost && (
-        <div className="absolute right-2.5 top-3.5 z-10 flex items-center gap-1 rounded-full bg-indigo-50/90 px-2 py-0.5 text-[10px] font-semibold text-indigo-600 shadow-sm backdrop-blur-sm dark:bg-indigo-500/15 dark:text-indigo-300">
-          <span className="text-[9px]">🔮</span> 1 credit
-        </div>
-      )}
-
       {/* ── Card body ───────────────────────────────────────────────────── */}
       <div className="flex flex-col items-start p-4">
-        {/* English name (white) + Sanskrit name (green) */}
-        <div className="w-full">
-          <h3 className="text-base font-bold leading-snug text-slate-900 dark:text-white">
-            {desc?.englishName ?? poseName}
-          </h3>
-          {desc && (
-            <p className="mt-0.5 text-xs font-medium italic text-emerald-400/90">
-              {desc.sanskritName}
-            </p>
+        {/* Name row — title left, credit badge right (no overlap) */}
+        <div className="flex w-full items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-bold leading-snug text-slate-900 dark:text-white">
+              {desc?.englishName ?? poseName}
+            </h3>
+            {desc && (
+              <p className="mt-0.5 text-xs font-medium italic text-emerald-400/90">
+                {desc.sanskritName}
+              </p>
+            )}
+          </div>
+          {showCreditCost && (
+            <span className="flex flex-shrink-0 items-center gap-0.5 rounded-full bg-indigo-50/90 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+              ✦ 1
+            </span>
           )}
         </div>
 

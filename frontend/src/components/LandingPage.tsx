@@ -151,13 +151,13 @@ function SequenceCard({ seq, icon, onClick, showCreditCost }: { seq: PoseSequenc
                 {seq.difficulty}
               </span>
               {showCreditCost && (
-                <span className="flex items-center gap-1 rounded-full bg-indigo-50/90 px-2 py-0.5 text-[10px] font-semibold text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
-                  <span className="text-[9px]">🔮</span> {seq.steps.length} credit{seq.steps.length === 1 ? '' : 's'}
+                <span className="flex items-center gap-0.5 rounded-full bg-indigo-50/90 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+                  ✦ {seq.steps.length}
                 </span>
               )}
             </div>
           </div>
-          <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+          <p className="mt-1.5 text-xs leading-relaxed text-slate-500 transition-all duration-300 line-clamp-2 group-hover:line-clamp-none group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-300">
             {seq.description}
           </p>
           <div className="mt-3 flex items-center gap-4 text-[11px] text-slate-400 dark:text-slate-500">
