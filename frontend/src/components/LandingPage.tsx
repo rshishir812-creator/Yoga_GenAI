@@ -124,7 +124,7 @@ function groupPoses(poses: string[]): PoseGroup[] {
 
 // ── Sequence card (extracted for reuse) ────────────────────────────────────
 
-function SequenceCard({ seq, icon, onClick }: { seq: PoseSequence; icon: string; onClick: () => void }) {
+function SequenceCard({ seq, icon, onClick, showCreditCost }: { seq: PoseSequence; icon: string; onClick: () => void; showCreditCost?: boolean }) {
   return (
     <button
       type="button"
@@ -146,9 +146,16 @@ function SequenceCard({ seq, icon, onClick }: { seq: PoseSequence; icon: string;
                 {seq.sanskritName}
               </p>
             </div>
-            <span className="flex-shrink-0 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold capitalize text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
-              {seq.difficulty}
-            </span>
+            <div className="flex flex-shrink-0 flex-col items-end gap-1">
+              <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold capitalize text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+                {seq.difficulty}
+              </span>
+              {showCreditCost && (
+                <span className="flex items-center gap-1 rounded-full bg-indigo-50/90 px-2 py-0.5 text-[10px] font-semibold text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+                  <span className="text-[9px]">🔮</span> {seq.steps.length} credit{seq.steps.length === 1 ? '' : 's'}
+                </span>
+              )}
+            </div>
           </div>
           <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
             {seq.description}
@@ -174,8 +181,10 @@ export default function LandingPage(props: {
   onBackHome: () => void
   sequences?: PoseSequence[]
   onSelectSequence?: (seq: PoseSequence) => void
+  /** Show credit cost badges on tiles (true for authenticated non-unlimited users) */
+  showCreditCost?: boolean
 }) {
-  const { poses, onSelectPose, onBackHome, sequences, onSelectSequence } = props
+  const { poses, onSelectPose, onBackHome, sequences, onSelectSequence, showCreditCost } = props
 
   const sequenceGroups = useMemo(
     () => (sequences && sequences.length > 0 ? groupSequences(sequences) : []),
@@ -242,6 +251,7 @@ export default function LandingPage(props: {
                       seq={seq}
                       icon={SEQUENCE_ICON_MAP[seq.id] ?? 'sun'}
                       onClick={() => onSelectSequence(seq)}
+                      showCreditCost={showCreditCost}
                     />
                   ))}
                 </div>
@@ -287,6 +297,7 @@ export default function LandingPage(props: {
                     poseName={pose}
                     index={i}
                     onClick={() => onSelectPose(pose)}
+                    showCreditCost={showCreditCost}
                   />
                 </motion.div>
               ))}

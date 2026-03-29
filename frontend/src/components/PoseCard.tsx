@@ -18,8 +18,10 @@ export default function PoseCard(props: {
   poseName: string
   index?: number
   onClick: () => void
+  /** When true, show credit cost badge */
+  showCreditCost?: boolean
 }) {
-  const { poseName, index = 0, onClick } = props
+  const { poseName, index = 0, onClick, showCreditCost } = props
   const desc = POSE_DESCRIPTIONS[poseName]
   const accent = ACCENT_GRADIENTS[index % ACCENT_GRADIENTS.length]
 
@@ -34,6 +36,13 @@ export default function PoseCard(props: {
     >
       {/* ── Top accent gradient bar ─────────────────────────────────────── */}
       <div className={`h-1 w-full bg-gradient-to-r ${accent}`} />
+
+      {/* ── Credit cost badge (top-right) ───────────────────────────────── */}
+      {showCreditCost && (
+        <div className="absolute right-2.5 top-3.5 z-10 flex items-center gap-1 rounded-full bg-indigo-50/90 px-2 py-0.5 text-[10px] font-semibold text-indigo-600 shadow-sm backdrop-blur-sm dark:bg-indigo-500/15 dark:text-indigo-300">
+          <span className="text-[9px]">🔮</span> 1 credit
+        </div>
+      )}
 
       {/* ── Card body ───────────────────────────────────────────────────── */}
       <div className="flex flex-col items-start p-4">

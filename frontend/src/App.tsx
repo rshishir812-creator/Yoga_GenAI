@@ -881,6 +881,15 @@ export default function App() {
             <div className="sticky top-0 z-30 flex w-full items-center justify-between gap-2 bg-slate-50/80 px-3 py-2 backdrop-blur-lg dark:bg-slate-950/80 sm:px-4 sm:py-3">
               <AppSectionTabs value={activeSection} onChange={handleSectionChange} />
               <div className="flex items-center gap-1.5 sm:gap-2">
+                {/* Credit summary — visible for authenticated free-tier users */}
+                {safety.isAuthenticated && (
+                  <CreditIndicator
+                    creditsRemaining={credits?.credits_remaining ?? null}
+                    isUnlimited={isUnlimited}
+                    creditsUsed={credits?.credits_used}
+                    variant="summary"
+                  />
+                )}
                 <button
                   type="button"
                   onClick={toggleTheme}
@@ -908,6 +917,7 @@ export default function App() {
                 onBackHome={handleBackToHome}
                 sequences={SEQUENCES}
                 onSelectSequence={handleSelectSequence}
+                showCreditCost={safety.isAuthenticated && !isUnlimited}
               />
             ) : (
               <BreathworkPage

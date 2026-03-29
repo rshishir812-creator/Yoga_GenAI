@@ -1,14 +1,20 @@
 type Props = {
   creditsRemaining: number | null
   isUnlimited: boolean
+  /** Total credits (remaining + used) for summary display */
+  creditsUsed?: number
+  /** Compact mode (practice header) vs summary mode (landing toolbar) */
+  variant?: 'compact' | 'summary'
 }
 
 /**
  * Small pill badge that shows remaining AI feedback credits.
  * Hidden for super_user / paid_user (unlimited) accounts.
- * Shown in the session header area for free-tier users.
+ *
+ * - variant="compact": "🔮 12 credits" (practice header)
+ * - variant="summary": "🔮 12 / 20 credits used" (landing toolbar)
  */
-export default function CreditIndicator({ creditsRemaining, isUnlimited }: Props) {
+export default function CreditIndicator({ creditsRemaining, isUnlimited, creditsUsed, variant = 'compact' }: Props) {
   // Don't render for unlimited users
   if (isUnlimited || creditsRemaining === null || creditsRemaining === undefined) {
     return null
@@ -16,6 +22,7 @@ export default function CreditIndicator({ creditsRemaining, isUnlimited }: Props
 
   const isLow = creditsRemaining <= 5
   const isEmpty = creditsRemaining <= 0
+  const totalCredits = creditsUsed != null ? creditsRemaining + creditsUsed : null
 
   return (
     <div
@@ -34,7 +41,9 @@ export default function CreditIndicator({ creditsRemaining, isUnlimited }: Props
       <span>
         {isEmpty
           ? 'No credits'
-          : `${creditsRemaining} credit${creditsRemaining === 1 ? '' : 's'}`
+          : variant === 'summary' && totalCredits != null
+            ? `${creditsUsed} / ${totalCredits} used`
+            : `${creditsRemaining} credit${creditsRemaining === 1 ? '' : 's'}`
         }
       </span>
     </div>
