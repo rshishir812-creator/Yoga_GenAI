@@ -87,6 +87,11 @@ class GeminiAlignmentResponse(BaseModel):
     breath_cue: str = ""
     safety_note: str | None = None
 
+    # ── Credit system fields (populated by the /api/evaluate endpoint) ───────
+    credits_remaining: int | None = Field(default=None, description="Remaining credits (null = unlimited)")
+    credits_exhausted: bool = Field(default=False, description="True if the user has 0 credits left")
+    is_guest: bool = Field(default=False, description="True if the request was unauthenticated (guest)")
+
 class AssistantMessage(BaseModel):
     """Represents a message in the conversation history."""
     role: Literal["user", "assistant"]

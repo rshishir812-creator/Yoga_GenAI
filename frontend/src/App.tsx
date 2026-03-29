@@ -35,6 +35,12 @@ import SessionBriefing from './components/SessionBriefing'
 import PainCheckButton from './components/PainCheckButton'
 import RiskWarningBanner from './components/RiskWarningBanner'
 
+// Credit system imports
+import { useCredits } from './hooks/useCredits'
+import CreditIndicator from './components/CreditIndicator'
+import SignInPrompt from './components/SignInPrompt'
+import UpgradePrompt from './components/UpgradePrompt'
+
 type FramingState = 'cameraLoading' | 'notFramed' | 'partiallyFramed' | 'handsNotRaised' | 'fullyFramed'
 type ExperiencePhase = 'welcome' | 'landing' | 'disclaimer' | 'health-check' | 'session-briefing' | 'intro' | 'framing' | 'evaluating' | 'results' | 'sequence-complete' | 'breathwork-session'
 
@@ -131,6 +137,11 @@ export default function App() {
   const [activePanel, setActivePanel] = useState<'instructor' | 'self'>('self')
   const [cameraFullScreen, setCameraFullScreen] = useState(false)
   const [evaluating, setEvaluating] = useState(false)
+
+  // ── Credit system state ──────────────────────────────────────────────────
+  const { credits, isUnlimited, refreshCredits } = useCredits(safety.googleSub || null)
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false)
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
 
   // ── Orientation auto-detect ─────────────────────────────────────────────
   // ── Sequence state ─────────────────────────────────────────────────────
@@ -660,8 +671,30 @@ export default function App() {
         clientId: clientIdRef.current,
         expectedPose,
         userLevel,
-        landmarks
+        landmarks,
+        googleSub: safety.googleSub || null,
       })
+
+      // ── Handle guest gate response ──────────────────────────────────────
+      if (resp.is_guest) {
+        setShowSignInPrompt(true)
+        setStatusText('Sign in for AI feedback.')
+        setEvaluating(false)
+        return
+      }
+
+      // ── Handle credits exhausted response ───────────────────────────────
+      if (resp.credits_exhausted) {
+        setShowUpgradePrompt(true)
+        setStatusText('Credits exhausted.')
+        setEvaluating(false)
+        await refreshCredits()
+        return
+      }
+
+      // ── Refresh credit balance after successful evaluation ──────────────
+      refreshCredits()
+
       setAlignment(resp)
       setStatusText('Feedback ready.')
 
@@ -820,6 +853,26 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* ── Sign-in prompt overlay (guests hitting evaluate) ───────────────── */}
+      <AnimatePresence>
+        {showSignInPrompt && (
+          <SignInPrompt
+            onSignIn={() => {
+              setShowSignInPrompt(false)
+              handleBackToHome()
+            }}
+            onDismiss={() => setShowSignInPrompt(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Upgrade prompt overlay (free-tier credits exhausted) ───────────── */}
+      <AnimatePresence>
+        {showUpgradePrompt && (
+          <UpgradePrompt onDismiss={() => setShowUpgradePrompt(false)} />
+        )}
+      </AnimatePresence>
+
       {/* ── Landing page ───────────────────────────────────────────────────── */}
       <AnimatePresence>
         {experiencePhase === 'landing' && (
@@ -945,6 +998,11 @@ export default function App() {
                   </div>
                 )}
               </div>
+              {/* Credit indicator — visible for free-tier users */}
+              <CreditIndicator
+                creditsRemaining={credits?.credits_remaining ?? null}
+                isUnlimited={isUnlimited}
+              />
             </div>
             <div className="flex items-center gap-1.5 sm:flex-wrap sm:gap-3">
               {/* Show layout toggle only on larger screens */}

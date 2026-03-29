@@ -5,6 +5,8 @@ import { fetchBreathworkProtocols } from '../api/client'
 import BreathworkIcon from '../components/BreathworkIcons'
 import BreathworkInfoSheet from '../components/BreathworkInfoSheet'
 
+// Breathwork is always free — no credit check or auth gate required.
+
 interface BreathworkPageProps {
   baseUrl: string
   onBackHome: () => void

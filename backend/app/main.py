@@ -24,6 +24,7 @@ from app.services.pose_library import get_library, get_pose, check_pose_contrain
 
 # Safety architecture imports
 from app.core.auth import verify_google_token, upsert_user, get_current_user, get_optional_user
+from app.core.db import get_supabase
 from safety.models import UserHealthInput, UserRiskProfile, SessionPlan
 from safety.safety_profiler import SafetyProfiler
 from session.session_orchestrator import SessionOrchestrator
@@ -211,14 +212,102 @@ async def text_to_speech(req: TTSRequest) -> Response:
 
 
 @app.post("/api/evaluate", response_model=GeminiAlignmentResponse)
-def evaluate(req: EvaluateRequest) -> dict:
+def evaluate(
+    req: EvaluateRequest,
+    user: dict[str, _Any] | None = Depends(get_optional_user),
+) -> dict:
+    # ── Guest gate: no LLM feedback for unauthenticated users ────────────
+    if user is None:
+        return {
+            "pose_match": "partially_aligned",
+            "confidence": "low",
+            "primary_focus_area": "none",
+            "deviations": [],
+            "correction_message": "Sign in with Google to unlock AI-powered feedback on your pose.",
+            "score": None,
+            "correction_bullets": [],
+            "positive_observation": "",
+            "breath_cue": "",
+            "safety_note": None,
+            "is_guest": True,
+            "credits_remaining": None,
+            "credits_exhausted": False,
+        }
+
+    # ── Credit check (pre-flight) ────────────────────────────────────────
+    sb = get_supabase()
+    profile_row = (
+        sb.table("user_profiles")
+        .select("credits_remaining")
+        .eq("user_id", user["id"])
+        .maybe_single()
+        .execute()
+    )
+    if profile_row.data and profile_row.data["credits_remaining"] is not None:
+        if profile_row.data["credits_remaining"] <= 0:
+            return {
+                "pose_match": "partially_aligned",
+                "confidence": "low",
+                "primary_focus_area": "none",
+                "deviations": [],
+                "correction_message": "You have used all your free AI feedback credits. Upgrade to continue receiving personalised corrections.",
+                "score": None,
+                "correction_bullets": [],
+                "positive_observation": "",
+                "breath_cue": "",
+                "safety_note": None,
+                "is_guest": False,
+                "credits_remaining": 0,
+                "credits_exhausted": True,
+            }
+
+    # ── Run LLM evaluation ───────────────────────────────────────────────
     landmarks = [lm.model_dump() for lm in req.landmarks]
-    return evaluator.evaluate(
+    result = evaluator.evaluate(
         client_id=req.client_id,
         expected_pose=req.expected_pose,
         user_level=req.user_level,
         landmarks=landmarks,
     )
+
+    # ── Deduct credit (atomic RPC) ───────────────────────────────────────
+    try:
+        deduct_resp = sb.rpc("deduct_credit", {"p_user_id": str(user["id"])}).execute()
+        deduct_data = deduct_resp.data if deduct_resp.data else {}
+        result["credits_remaining"] = deduct_data.get("credits_remaining")
+        result["credits_exhausted"] = False
+    except Exception:
+        # Non-fatal: credit deduction failed, don't block feedback
+        result["credits_remaining"] = None
+        result["credits_exhausted"] = False
+
+    result["is_guest"] = False
+    return result
+
+
+# ── Credit balance endpoint ─────────────────────────────────────────────────
+
+@app.get("/api/user/credits")
+def get_user_credits(
+    user: dict[str, _Any] = Depends(get_current_user),
+) -> dict[str, _Any]:
+    """Return the authenticated user's credit balance."""
+    sb = get_supabase()
+    row = (
+        sb.table("user_profiles")
+        .select("credits_remaining, credits_used, profile_type")
+        .eq("user_id", user["id"])
+        .maybe_single()
+        .execute()
+    )
+    if not row.data:
+        # No profile yet — should have been auto-created by trigger
+        return {"credits_remaining": 20, "credits_used": 0, "profile_type": "free_user"}
+    return {
+        "credits_remaining": row.data["credits_remaining"],
+        "credits_used": row.data["credits_used"],
+        "profile_type": row.data["profile_type"],
+    }
 
 
 # ── Fast deterministic pose scoring (no LLM, <20ms) ────────────────────────

@@ -27,6 +27,13 @@ export type AlignmentResponse = {
   breath_cue: string
   /** Safety caution if a joint is severely misaligned, otherwise null */
   safety_note: string | null
+  // ── Credit system fields ─────────────────────────────────────────────
+  /** Remaining credits after this evaluation (null = unlimited) */
+  credits_remaining?: number | null
+  /** True if the user has 0 credits left */
+  credits_exhausted?: boolean
+  /** True if the request was unauthenticated (guest) */
+  is_guest?: boolean
 }
 
 export type Landmark = { x: number; y: number; z: number; visibility: number }
@@ -96,10 +103,15 @@ export async function evaluateAlignment(params: {
   expectedPose: ExpectedPose
   userLevel: UserLevel
   landmarks: Landmark[]
+  googleSub?: string | null
 }): Promise<AlignmentResponse> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (params.googleSub) {
+    headers['Authorization'] = `Bearer ${params.googleSub}`
+  }
   const res = await fetch(`${params.baseUrl}/api/evaluate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({
       client_id: params.clientId,
       expected_pose: params.expectedPose,
@@ -286,4 +298,25 @@ export async function checkContraindications(params: {
   }
 
   return (await res.json()) as ContraindicationResult
+}
+
+// ── User credit balance ─────────────────────────────────────────────────────
+
+export type UserCredits = {
+  credits_remaining: number | null
+  credits_used: number
+  profile_type: 'super_user' | 'paid_user' | 'free_user'
+}
+
+export async function fetchUserCredits(params: {
+  baseUrl: string
+  googleSub: string
+}): Promise<UserCredits> {
+  const res = await fetch(`${params.baseUrl}/api/user/credits`, {
+    headers: { Authorization: `Bearer ${params.googleSub}` },
+  })
+  if (!res.ok) {
+    throw new Error(`Credits fetch error: ${res.status}`)
+  }
+  return (await res.json()) as UserCredits
 }
