@@ -33,6 +33,8 @@ interface PoseIntroOverlayProps {
   onExitSequence?: () => void
   /** Sub-phase within framing: detecting body → getting into pose → countdown to evaluate */
   framingSubPhase?: 'detecting' | 'posing' | 'countdown'
+  /** Indicates active voice-command listening state in results phase */
+  voiceListening?: boolean
 }
 
 function MediaThumb({ src, alt }: { src: string; alt: string }) {
@@ -71,6 +73,7 @@ export default function PoseIntroOverlay({
   onNextInSequence,
   onExitSequence,
   framingSubPhase = 'detecting',
+  voiceListening = false,
 }: PoseIntroOverlayProps) {
   const [showButton, setShowButton] = useState(false)
 
@@ -488,8 +491,8 @@ export default function PoseIntroOverlay({
             animate={{ opacity: 1 }}
             transition={{ delay: 0.4 }}
           >
-            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-            Listening for your choice…
+            <span className={`inline-block h-1.5 w-1.5 rounded-full ${voiceListening ? 'animate-pulse bg-emerald-400' : 'bg-slate-500'}`} />
+            {voiceListening ? 'Listening for your choice… say next, again, or exit' : 'Voice commands ready'}
           </motion.div>
         )}
 

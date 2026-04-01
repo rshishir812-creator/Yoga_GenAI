@@ -11,6 +11,7 @@ import UserCameraPanel from './components/UserCameraPanel'
 import VoiceSettings from './components/VoiceSettings'
 import { POSE_DESCRIPTIONS } from './data/poseDescriptions'
 import { useVoiceGuide } from './hooks/useVoiceGuide'
+import { useVoiceCommand } from './hooks/useVoiceCommand'
 import { DEFAULT_VOICE_SETTINGS } from './hooks/useVoiceGuide'
 import type { VoiceSettings as VoiceSettingsType } from './hooks/useVoiceGuide'
 import { useTheme } from './hooks/useTheme'
@@ -261,6 +262,12 @@ export default function App() {
   const clientIdRef = useRef<string>(newClientId())
 
   const { speak, speakFeedback, cancel: cancelVoice } = useVoiceGuide(voiceOn, voiceSettings)
+  const {
+    startListening: startVoiceCommandListening,
+    stopListening: stopVoiceCommandListening,
+    listening: isVoiceCommandListening,
+    supported: voiceCommandSupported,
+  } = useVoiceCommand()
 
   const baseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/api\/?$/, '').replace(/\/$/, '') ?? 'http://localhost:8000'
 
@@ -479,6 +486,7 @@ export default function App() {
   }
 
   function handleBackToHome() {
+    stopVoiceCommandListening()
     cancelVoice()
     stopSession()
     resetAlignmentState()
@@ -488,6 +496,7 @@ export default function App() {
   }
 
   function handleSectionChange(section: 'yoga' | 'breathwork') {
+    stopVoiceCommandListening()
     cancelVoice()
     stopSession()
     setBreathworkToast(null)
@@ -514,6 +523,7 @@ export default function App() {
   }
 
   function handleSelectPose(pose: string) {
+    stopVoiceCommandListening()
     cancelVoice()
     stopSession()
     setExpectedPose(pose as ExpectedPose)
@@ -528,6 +538,7 @@ export default function App() {
     setExperiencePhase('framing')
   }
   function handleSelectSequence(seq: PoseSequence) {
+    stopVoiceCommandListening()
     cancelVoice()
     stopSession()
     resetAlignmentState()
@@ -543,6 +554,7 @@ export default function App() {
   }
 
   function handleNextInSequence() {
+    stopVoiceCommandListening()
     const currentResult = {
       pose: expectedPose,
       score: alignment.score ?? null,
@@ -569,6 +581,7 @@ export default function App() {
   }
 
   function handleExitSequence() {
+    stopVoiceCommandListening()
     cancelVoice()
     stopSession()
     resetAlignmentState()
@@ -582,6 +595,7 @@ export default function App() {
   function handleRestartSequence() {
     const seq = SEQUENCES.find((s) => s.id === sequenceId)
     if (!seq) { handleExitSequence(); return }
+    stopVoiceCommandListening()
     cancelVoice()
     stopSession()
     resetAlignmentState()
@@ -601,6 +615,7 @@ export default function App() {
   }
 
   function handleBackToLanding() {
+    stopVoiceCommandListening()
     cancelVoice()
     stopSession()
     resetAlignmentState()
@@ -609,6 +624,7 @@ export default function App() {
   }
 
   function handleTryAgain() {
+    stopVoiceCommandListening()
     cancelVoice()
     stopSession()
     resetAlignmentState()
@@ -617,6 +633,7 @@ export default function App() {
   }
 
   function handleTryAnother() {
+    stopVoiceCommandListening()
     cancelVoice()
     stopSession()
     resetAlignmentState()
@@ -628,6 +645,7 @@ export default function App() {
   }
 
   function handleEndSession() {
+    stopVoiceCommandListening()
     cancelVoice()
     stopSession()
     chatStore.addSessionSummary()
@@ -655,6 +673,38 @@ export default function App() {
     })
     setStatusText('Press Start to evaluate once.')
   }
+
+  function startResultsVoiceCommands() {
+    if (!voiceOn || !voiceCommandSupported) return
+
+    startVoiceCommandListening((action) => {
+      if (action === 'again') {
+        handleTryAgain()
+        return
+      }
+      if (action === 'next') {
+        if (isInSequence) {
+          handleNextInSequence()
+        } else {
+          handleTryAnother()
+        }
+        return
+      }
+      if (action === 'exit') {
+        if (isInSequence) {
+          handleExitSequence()
+        } else {
+          handleBackToLanding()
+        }
+      }
+    })
+  }
+
+  useEffect(() => {
+    if (experiencePhase !== 'results') {
+      stopVoiceCommandListening()
+    }
+  }, [experiencePhase, stopVoiceCommandListening])
 
   function runCountdownThenEvaluate() {
     if (countdownTimerRef.current) {
@@ -844,9 +894,9 @@ export default function App() {
 
       const afterPrompt = isInSequence
         ? sequenceIndex + 1 < sequencePoses.length
-          ? `Well done! Next up is ${sequencePoses[sequenceIndex + 1].pose}. Tap the button when you are ready.`
-          : 'Wonderful! You have completed the full sequence. Tap the button to see your results.'
-        : 'Would you like to try this pose again, or try a different pose?'
+          ? `Well done! Next up is ${sequencePoses[sequenceIndex + 1].pose}. Say next to continue, or say again to retry this pose.`
+          : 'Wonderful! You have completed the full sequence. Say next to finish, or say again to retry this pose.'
+        : 'Would you like to try this pose again, or try a different pose? Say again to retry, or say next for another pose.'
 
       // Trainer prompt: tell user they can relax, then speak feedback + afterPrompt
       const relaxPrompt = 'Done! You can relax and come back to a comfortable standing position.'
@@ -855,13 +905,17 @@ export default function App() {
         speak(relaxPrompt, () => {
           speakFeedback(feedbackText, () => {
             setExperiencePhase('results')
-            speak(afterPrompt)
+            speak(afterPrompt, () => {
+              startResultsVoiceCommands()
+            })
           })
         })
       } else {
         speak(relaxPrompt, () => {
           setExperiencePhase('results')
-          speak(afterPrompt)
+          speak(afterPrompt, () => {
+            startResultsVoiceCommands()
+          })
         })
       }
     } catch (e) {
@@ -1376,6 +1430,7 @@ export default function App() {
                   nextPoseName={sequencePoses[sequenceIndex + 1]?.pose}
                   onNextInSequence={isInSequence ? handleNextInSequence : undefined}
                   onExitSequence={isInSequence ? handleExitSequence : undefined}
+                  voiceListening={isVoiceCommandListening}
                 />
               )}
             </AnimatePresence>
