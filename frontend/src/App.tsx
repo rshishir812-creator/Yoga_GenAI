@@ -44,23 +44,28 @@ import UpgradePrompt from './components/UpgradePrompt'
 type FramingState = 'cameraLoading' | 'notFramed' | 'partiallyFramed' | 'handsNotRaised' | 'fullyFramed'
 type ExperiencePhase = 'welcome' | 'landing' | 'disclaimer' | 'health-check' | 'session-briefing' | 'intro' | 'framing' | 'evaluating' | 'results' | 'sequence-complete' | 'breathwork-session'
 
-const REQUIRED_LANDMARKS: Record<
-  string,
-  number
-> = {
-  nose: 0,
-  l_shoulder: 11,
-  r_shoulder: 12,
-  l_elbow: 13,
-  r_elbow: 14,
-  l_wrist: 15,
-  r_wrist: 16,
-  l_hip: 23,
-  r_hip: 24,
-  l_knee: 25,
-  r_knee: 26,
-  l_ankle: 27,
-  r_ankle: 28
+// ── Body-region → landmark index mapping for granular framing guidance ──────
+const BODY_REGION_LANDMARKS: Array<{ region: string; label: string; indices: number[] }> = [
+  { region: 'head',             label: 'your head',              indices: [0]       },
+  { region: 'left_shoulder',    label: 'your left shoulder',     indices: [11]      },
+  { region: 'right_shoulder',   label: 'your right shoulder',    indices: [12]      },
+  { region: 'left_arm',         label: 'your left arm',          indices: [13, 15]  },
+  { region: 'right_arm',        label: 'your right arm',         indices: [14, 16]  },
+  { region: 'left_fingertips',  label: 'your left fingertips',   indices: [17, 19]  },
+  { region: 'right_fingertips', label: 'your right fingertips',  indices: [18, 20]  },
+  { region: 'left_hip',         label: 'your left hip',          indices: [23]      },
+  { region: 'right_hip',        label: 'your right hip',         indices: [24]      },
+  { region: 'left_knee',        label: 'your left knee',         indices: [25]      },
+  { region: 'right_knee',       label: 'your right knee',        indices: [26]      },
+  { region: 'left_foot',        label: 'your left foot',         indices: [27, 29, 31] },
+  { region: 'right_foot',       label: 'your right foot',        indices: [28, 30, 32] },
+]
+
+// Legacy index map (used for framing-ready check)
+const REQUIRED_LANDMARKS: Record<string, number> = {
+  nose: 0, l_shoulder: 11, r_shoulder: 12, l_elbow: 13, r_elbow: 14,
+  l_wrist: 15, r_wrist: 16, l_hip: 23, r_hip: 24, l_knee: 25, r_knee: 26,
+  l_ankle: 27, r_ankle: 28,
 }
 
 function withinBoundsY(lm: Landmark) {
@@ -71,12 +76,32 @@ function isVisible(lm: Landmark) {
   return lm.visibility > 0.6 && withinBoundsY(lm)
 }
 
-function computeFraming(landmarks: Landmark[] | null): { state: FramingState; message: string } {
+/** Check which body regions are missing from the frame. */
+function getMissingRegions(landmarks: Landmark[]): string[] {
+  const missing: string[] = []
+  for (const { label, indices } of BODY_REGION_LANDMARKS) {
+    // Region is "missing" if none of its landmark indices are visible
+    const anyVisible = indices.some((i) => {
+      const lm = landmarks[i]
+      return lm && isVisible(lm)
+    })
+    if (!anyVisible) missing.push(label)
+  }
+  return missing
+}
+
+interface FramingResult {
+  state: FramingState
+  message: string
+  missingParts: string[]
+}
+
+function computeFraming(landmarks: Landmark[] | null): FramingResult {
   const initialMsg =
     'Stand fully within the frame. Raise both arms overhead and ensure your body is visible from fingertips to toes.'
 
   if (!landmarks || landmarks.length !== 33) {
-    return { state: 'cameraLoading', message: initialMsg }
+    return { state: 'cameraLoading', message: initialMsg, missingParts: [] }
   }
 
   const requiredIdxs = Object.values(REQUIRED_LANDMARKS)
@@ -87,14 +112,16 @@ function computeFraming(landmarks: Landmark[] | null): { state: FramingState; me
   }
 
   if (visibleCount === 0) {
-    return { state: 'notFramed', message: initialMsg }
+    return { state: 'notFramed', message: initialMsg, missingParts: [] }
   }
 
+  const missingParts = getMissingRegions(landmarks)
+
   if (visibleCount < requiredIdxs.length) {
-    return {
-      state: 'partiallyFramed',
-      message: 'Please step back slightly so your full body remains visible.'
-    }
+    const specific = missingParts.length > 0
+      ? `I can't see ${missingParts.slice(0, 3).join(', ')}. Please adjust so your full body is visible.`
+      : 'Please step back slightly so your full body remains visible.'
+    return { state: 'partiallyFramed', message: specific, missingParts }
   }
 
   const nose = landmarks[REQUIRED_LANDMARKS.nose]
@@ -105,11 +132,62 @@ function computeFraming(landmarks: Landmark[] | null): { state: FramingState; me
   if (!handsRaised) {
     return {
       state: 'handsNotRaised',
-      message: 'Raise both arms straight above your head to complete framing.'
+      message: 'Raise both arms straight above your head to complete framing.',
+      missingParts: [],
     }
   }
 
-  return { state: 'fullyFramed', message: 'You are now framed correctly — you may begin your practice.' }
+  return { state: 'fullyFramed', message: 'You are now framed correctly — you may begin your practice.', missingParts: [] }
+}
+
+// ── Framing voice coach: adaptive-cooldown, stability-gated prompts ─────────
+
+type FramingCoachPrompt = {
+  text: string
+  severity: 'critical' | 'partial' | 'gentle'
+}
+
+function buildFramingCoachPrompt(result: FramingResult): FramingCoachPrompt | null {
+  switch (result.state) {
+    case 'notFramed':
+      return {
+        text: 'I cannot see you yet. Please step in front of the camera so your full body is visible.',
+        severity: 'critical',
+      }
+    case 'partiallyFramed': {
+      const parts = result.missingParts
+      if (parts.length === 0) {
+        return { text: 'Almost there. Step back a little so I can see your entire body.', severity: 'partial' }
+      }
+      if (parts.length <= 2) {
+        return { text: `Almost there! I can't quite see ${parts.join(' and ')}. Adjust a little.`, severity: 'partial' }
+      }
+      // 3+ missing: group and be concise
+      const shown = parts.slice(0, 3).join(', ')
+      return { text: `I'm missing ${shown}. Please step back or reposition so I can see your full body.`, severity: 'partial' }
+    }
+    case 'handsNotRaised':
+      return {
+        text: 'Great, I can see you! Now raise both arms straight above your head.',
+        severity: 'gentle',
+      }
+    case 'fullyFramed':
+      return {
+        text: 'Perfect! You are fully in frame. Hold still — the countdown is starting.',
+        severity: 'gentle',
+      }
+    default:
+      return null
+  }
+}
+
+/** Adaptive cooldown (seconds) based on prompt severity */
+function framingCooldown(severity: 'critical' | 'partial' | 'gentle'): number {
+  switch (severity) {
+    case 'critical': return 5000   // user not visible at all — don't repeat too fast
+    case 'partial':  return 4000   // partially visible — moderate pace
+    case 'gentle':   return 6000   // almost there / done — less chatter
+  }
 }
 
 function newClientId(): string {
@@ -233,14 +311,51 @@ export default function App() {
   const latestVisibilityRef = useRef<number>(0)
   const framingUiTimerRef = useRef<number | null>(null)
 
-  const [framing, setFraming] = useThrottledState<{ state: FramingState; message: string }>(
+  const [framing, setFraming] = useThrottledState<FramingResult>(
     {
       state: 'cameraLoading',
       message:
-        'Stand fully within the frame. Raise both arms overhead and ensure your body is visible from fingertips to toes.'
+        'Stand fully within the frame. Raise both arms overhead and ensure your body is visible from fingertips to toes.',
+      missingParts: [],
     },
     2
   )
+
+  // ── Framing voice-coach refs ──────────────────────────────────────────────
+  const lastFramingPromptRef = useRef<string>('')
+  const lastFramingTsRef = useRef<number>(0)
+  const framingStableCountRef = useRef<number>(0)
+  const lastFramingStateRef = useRef<FramingState>('cameraLoading')
+  const FRAMING_STABILITY_THRESHOLD = 2 // require N consecutive same-state samples before speaking
+
+  /** Evaluate whether to speak a framing coaching prompt (stability + cooldown gated). */
+  function maybeCoachFraming(result: FramingResult) {
+    if (experiencePhase !== 'framing') return
+
+    // Stability gate: only speak after N consecutive samples in the same state
+    if (result.state === lastFramingStateRef.current) {
+      framingStableCountRef.current += 1
+    } else {
+      framingStableCountRef.current = 1
+      lastFramingStateRef.current = result.state
+    }
+    if (framingStableCountRef.current < FRAMING_STABILITY_THRESHOLD) return
+
+    const prompt = buildFramingCoachPrompt(result)
+    if (!prompt) return
+
+    // Dedupe gate: don't repeat exact same text
+    if (prompt.text === lastFramingPromptRef.current) return
+
+    // Cooldown gate: adaptive by severity
+    const now = Date.now()
+    const cooldown = framingCooldown(prompt.severity)
+    if (now - lastFramingTsRef.current < cooldown) return
+
+    lastFramingPromptRef.current = prompt.text
+    lastFramingTsRef.current = now
+    speakFeedback(prompt.text)
+  }
 
   const alignedPulseTimerRef = useRef<number | null>(null)
   const [alignedPulseActive, setAlignedPulseActive] = useState(false)
@@ -282,6 +397,11 @@ export default function App() {
   // ── Voice framing prompt when entering 'framing' phase ───────────────────
   useEffect(() => {
     if (experiencePhase !== 'framing') return
+    // Reset framing-coach state for a fresh start
+    lastFramingPromptRef.current = ''
+    lastFramingTsRef.current = 0
+    framingStableCountRef.current = 0
+    lastFramingStateRef.current = 'cameraLoading'
     speak(`Now, please step into the camera frame. Match the ${expectedPose} reference pose shown below. Once your body is detected, a 10 second countdown will begin automatically.`)
   }, [experiencePhase, expectedPose, speak])
 
@@ -558,6 +678,9 @@ export default function App() {
     setRunning(true)
     setStatusText('Hold the pose. Evaluating in 3…')
 
+    // Trainer prompt: ask user to hold steady for evaluation
+    speakFeedback('Hold the pose steady. I am evaluating your alignment. Stay still.')
+
     const t = window.setInterval(() => {
       setCountdown((c) => {
         if (c <= 1) {
@@ -737,16 +860,21 @@ export default function App() {
           : 'Wonderful! You have completed the full sequence. Tap the button to see your results.'
         : 'Would you like to try this pose again, or try a different pose?'
 
+      // Trainer prompt: tell user they can relax, then speak feedback + afterPrompt
+      const relaxPrompt = 'Done! You can relax and come back to a comfortable standing position.'
+
       if (feedbackText) {
-        speakFeedback(feedbackText, () => {
-          // After feedback is fully read, ask user what they want to do
+        speak(relaxPrompt, () => {
+          speakFeedback(feedbackText, () => {
+            setExperiencePhase('results')
+            speak(afterPrompt)
+          })
+        })
+      } else {
+        speak(relaxPrompt, () => {
           setExperiencePhase('results')
           speak(afterPrompt)
         })
-      } else {
-        // No feedback text — go straight to results
-        setExperiencePhase('results')
-        speak(afterPrompt)
       }
     } catch (e) {
       setAlignment({
@@ -1129,6 +1257,7 @@ export default function App() {
                       if (framingEnabled) {
                         const next = computeFraming(lms)
                         setFraming(next)
+                        maybeCoachFraming(next)
                         if (next.state === 'fullyFramed') {
                           setFramingEnabled(false)
                           if (framingUiTimerRef.current) window.clearTimeout(framingUiTimerRef.current)
@@ -1256,6 +1385,7 @@ export default function App() {
               if (framingEnabled) {
                 const next = computeFraming(lms)
                 setFraming(next)
+                maybeCoachFraming(next)
                 if (next.state === 'fullyFramed') {
                   setFramingEnabled(false)
                   if (framingUiTimerRef.current) window.clearTimeout(framingUiTimerRef.current)
