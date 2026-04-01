@@ -31,6 +31,8 @@ interface PoseIntroOverlayProps {
   onNextInSequence?: () => void
   /** Called when user wants to exit the sequence entirely */
   onExitSequence?: () => void
+  /** Fired when 10-second countdown starts (body detected) */
+  onCountdownStart?: () => void
 }
 
 function MediaThumb({ src, alt }: { src: string; alt: string }) {
@@ -68,6 +70,7 @@ export default function PoseIntroOverlay({
   sideNote,
   onNextInSequence,
   onExitSequence,
+  onCountdownStart,
 }: PoseIntroOverlayProps) {
   const [showButton, setShowButton] = useState(false)
   const isReady = visibleLandmarkCount >= 29
@@ -78,6 +81,10 @@ export default function PoseIntroOverlay({
   const hasTriggeredRef = useRef(false)
 
   const stableOnNext = useCallback(() => onNext(), [onNext])
+
+  // Stable ref for countdown-start callback (avoids dep-array churn)
+  const onCountdownStartRef = useRef(onCountdownStart)
+  useEffect(() => { onCountdownStartRef.current = onCountdownStart })
 
   // Reset when entering / leaving framing phase
   useEffect(() => {
@@ -97,6 +104,7 @@ export default function PoseIntroOverlay({
 
     if (isReady && framingCountdown === 0) {
       // Body detected → begin countdown
+      onCountdownStartRef.current?.()
       setFramingCountdown(10)
       if (countdownRef.current) clearInterval(countdownRef.current)
       countdownRef.current = setInterval(() => {

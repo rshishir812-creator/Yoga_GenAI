@@ -339,7 +339,8 @@ export default function App() {
       framingStableCountRef.current = 1
       lastFramingStateRef.current = result.state
     }
-    if (framingStableCountRef.current < FRAMING_STABILITY_THRESHOLD) return
+    const threshold = result.state === 'notFramed' ? 1 : FRAMING_STABILITY_THRESHOLD
+    if (framingStableCountRef.current < threshold) return
 
     const prompt = buildFramingCoachPrompt(result)
     if (!prompt) return
@@ -678,8 +679,8 @@ export default function App() {
     setRunning(true)
     setStatusText('Hold the pose. Evaluating in 3…')
 
-    // Trainer prompt: ask user to hold steady for evaluation
-    speakFeedback('Hold the pose steady. I am evaluating your alignment. Stay still.')
+    // Short cue — the main hold prompt already fired at the 10-second countdown start
+    speakFeedback('Evaluating now. Stay still.')
 
     const t = window.setInterval(() => {
       setCountdown((c) => {
@@ -1254,6 +1255,11 @@ export default function App() {
                         }
                       }
 
+                      // Voice coach during framing phase (independent of reframe UI)
+                      if (experiencePhase === 'framing' && lms) {
+                        maybeCoachFraming(computeFraming(lms))
+                      }
+
                       if (framingEnabled) {
                         const next = computeFraming(lms)
                         setFraming(next)
@@ -1325,6 +1331,10 @@ export default function App() {
                   visibleLandmarkCount={visibleLandmarkCount}
                   voiceEnabled={voiceOn}
                   onNext={handleFramingReady}
+                  onCountdownStart={() => {
+                    cancelVoice()
+                    speak('Hold the pose steady. I am going to evaluate your alignment. Stay still.')
+                  }}
                 />
               )}
             </AnimatePresence>
@@ -1382,6 +1392,12 @@ export default function App() {
                 const count = lms.filter((lm) => lm.visibility > 0.5).length
                 setVisibleLandmarkCount(count)
               }
+
+              // Voice coach during framing phase (independent of reframe UI)
+              if (experiencePhase === 'framing' && lms) {
+                maybeCoachFraming(computeFraming(lms))
+              }
+
               if (framingEnabled) {
                 const next = computeFraming(lms)
                 setFraming(next)
