@@ -167,6 +167,17 @@ function newClientId(): string {
   return crypto.randomUUID?.() ?? String(Date.now())
 }
 
+const STATIC_VOICE_PROMPTS_TO_PREFETCH: string[] = [
+  'Namaste. Welcome to your practice.',
+  'Please step into the camera frame so your full body is visible.',
+  'I am not able to see your full body. Please step in front of the camera.',
+  'I am not able to see your full body. Please step back a little.',
+  'Hold the pose steady. I am going to evaluate your alignment.',
+  'Done! You can relax and come back to a comfortable standing position.',
+  'Wonderful! You have completed the full sequence. Say next to finish, or say again to retry this pose.',
+  'Would you like to try this pose again, or try a different pose? Say again to retry, or say next for another pose.',
+]
+
 export default function App() {
   const safety = useSafety()
   const [experiencePhase, setExperiencePhase] = useState<ExperiencePhase>('welcome')
@@ -261,7 +272,7 @@ export default function App() {
 
   const clientIdRef = useRef<string>(newClientId())
 
-  const { speak, speakFeedback, cancel: cancelVoice } = useVoiceGuide(voiceOn, voiceSettings)
+  const { speak, speakFeedback, prefetch, cancel: cancelVoice } = useVoiceGuide(voiceOn, voiceSettings)
   const {
     startListening: startVoiceCommandListening,
     stopListening: stopVoiceCommandListening,
@@ -297,6 +308,12 @@ export default function App() {
       cancelled = true
     }
   }, [baseUrl])
+
+  // Warm persistent TTS cache for high-frequency static prompts.
+  useEffect(() => {
+    if (!voiceOn) return
+    prefetch(STATIC_VOICE_PROMPTS_TO_PREFETCH)
+  }, [voiceOn, prefetch])
 
   const countdownTimerRef = useRef<number | null>(null)
   const latestLandmarksRef = useRef<Landmark[] | null>(null)

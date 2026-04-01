@@ -30,6 +30,8 @@ export interface VoiceGuide {
    * onEnd fires when audio completes.
    */
   speakFeedback: (text: string, onEnd?: () => void) => void
+  /** Warm cache for known static prompts (best-effort, no playback). */
+  prefetch: (texts: string[]) => void
   /** Cancel any in-progress audio. */
   cancel: () => void
 }
@@ -38,6 +40,165 @@ export interface VoiceGuide {
 // Key: `${lang}:${gender}:${rate}:${pitch}:${text}` → Value: Blob (MP3)
 const audioCache = new Map<string, Blob>()
 const MAX_CACHE = 50
+
+// ── Persistent audio cache (IndexedDB) ─────────────────────────────────────
+// Survives page refreshes and greatly reduces repeated TTS/Translate calls.
+const VOICE_CACHE_DB_NAME = 'oorjakull-voice-cache'
+const VOICE_CACHE_DB_VERSION = 1
+const VOICE_CACHE_STORE = 'audio'
+const VOICE_CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 30 // 30 days
+
+type PersistentAudioRecord = {
+  key: string
+  blob: Blob
+  updatedAt: number
+}
+
+let cleanupInFlight = false
+let lastCleanupTs = 0
+
+function hasIndexedDbSupport(): boolean {
+  return typeof window !== 'undefined' && typeof window.indexedDB !== 'undefined'
+}
+
+function openVoiceCacheDb(): Promise<IDBDatabase | null> {
+  if (!hasIndexedDbSupport()) return Promise.resolve(null)
+
+  return new Promise((resolve) => {
+    try {
+      const request = window.indexedDB.open(VOICE_CACHE_DB_NAME, VOICE_CACHE_DB_VERSION)
+
+      request.onupgradeneeded = () => {
+        const db = request.result
+        if (!db.objectStoreNames.contains(VOICE_CACHE_STORE)) {
+          db.createObjectStore(VOICE_CACHE_STORE, { keyPath: 'key' })
+        }
+      }
+
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => resolve(null)
+    } catch {
+      resolve(null)
+    }
+  })
+}
+
+async function getPersistentAudio(key: string): Promise<Blob | null> {
+  const db = await openVoiceCacheDb()
+  if (!db) return null
+
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(VOICE_CACHE_STORE, 'readonly')
+      const store = tx.objectStore(VOICE_CACHE_STORE)
+      const req = store.get(key)
+
+      req.onsuccess = () => {
+        const rec = req.result as PersistentAudioRecord | undefined
+        if (!rec || !rec.blob) {
+          resolve(null)
+          return
+        }
+
+        const expired = Date.now() - rec.updatedAt > VOICE_CACHE_TTL_MS
+        if (expired) {
+          void deletePersistentAudio(key)
+          resolve(null)
+          return
+        }
+
+        resolve(rec.blob)
+      }
+
+      req.onerror = () => resolve(null)
+    } catch {
+      resolve(null)
+    }
+  })
+}
+
+async function setPersistentAudio(key: string, blob: Blob): Promise<void> {
+  const db = await openVoiceCacheDb()
+  if (!db) return
+
+  await new Promise<void>((resolve) => {
+    try {
+      const tx = db.transaction(VOICE_CACHE_STORE, 'readwrite')
+      const store = tx.objectStore(VOICE_CACHE_STORE)
+      const rec: PersistentAudioRecord = {
+        key,
+        blob,
+        updatedAt: Date.now(),
+      }
+      store.put(rec)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => resolve()
+      tx.onabort = () => resolve()
+    } catch {
+      resolve()
+    }
+  })
+
+  void cleanupExpiredPersistentAudio()
+}
+
+async function deletePersistentAudio(key: string): Promise<void> {
+  const db = await openVoiceCacheDb()
+  if (!db) return
+
+  await new Promise<void>((resolve) => {
+    try {
+      const tx = db.transaction(VOICE_CACHE_STORE, 'readwrite')
+      tx.objectStore(VOICE_CACHE_STORE).delete(key)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => resolve()
+      tx.onabort = () => resolve()
+    } catch {
+      resolve()
+    }
+  })
+}
+
+async function cleanupExpiredPersistentAudio(): Promise<void> {
+  const now = Date.now()
+  if (cleanupInFlight) return
+  if (now - lastCleanupTs < 1000 * 60 * 60) return // run at most once/hour
+
+  cleanupInFlight = true
+  lastCleanupTs = now
+
+  try {
+    const db = await openVoiceCacheDb()
+    if (!db) return
+
+    await new Promise<void>((resolve) => {
+      try {
+        const tx = db.transaction(VOICE_CACHE_STORE, 'readwrite')
+        const store = tx.objectStore(VOICE_CACHE_STORE)
+        const req = store.openCursor()
+
+        req.onsuccess = () => {
+          const cursor = req.result
+          if (!cursor) return
+
+          const rec = cursor.value as PersistentAudioRecord
+          if (now - rec.updatedAt > VOICE_CACHE_TTL_MS) {
+            cursor.delete()
+          }
+          cursor.continue()
+        }
+
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => resolve()
+        tx.onabort = () => resolve()
+      } catch {
+        resolve()
+      }
+    })
+  } finally {
+    cleanupInFlight = false
+  }
+}
 
 type Replacement = { from: string; to: string }
 
@@ -149,6 +310,41 @@ export function useVoiceGuide(
     [stopAudio],
   )
 
+  const fetchAudioBlob = useCallback(
+    async (text: string): Promise<Blob> => {
+      const normalizedText = normalizePoseNamesToSanskrit(text)
+      const key = cacheKey(normalizedText, settings.languageCode, settings.gender, settings.rate, settings.pitch)
+
+      // 1) Fast in-memory cache
+      const inMemory = audioCache.get(key)
+      if (inMemory) return inMemory
+
+      // 2) Persistent cache
+      const persisted = await getPersistentAudio(key)
+      if (persisted) {
+        cacheSet(key, persisted)
+        return persisted
+      }
+
+      // 3) Network fallback
+      const pitchSemitones = (settings.pitch - 1.0) * 20.0
+      const blob = await synthesizeSpeech({
+        baseUrl: getBaseUrl(),
+        text: normalizedText,
+        languageCode: settings.languageCode,
+        gender: settings.gender,
+        speed: settings.rate,
+        pitch: pitchSemitones,
+      })
+
+      cacheSet(key, blob)
+      // Best-effort persistent write. Ignore quota/IDB errors.
+      void setPersistentAudio(key, blob)
+      return blob
+    },
+    [settings],
+  )
+
   const speak = useCallback(
     (text: string, onEnd?: () => void) => {
       // Clear any pending silent timer
@@ -171,31 +367,11 @@ export function useVoiceGuide(
         return
       }
 
-      const normalizedText = normalizePoseNamesToSanskrit(text)
-      const key = cacheKey(normalizedText, settings.languageCode, settings.gender, settings.rate, settings.pitch)
-      const cached = audioCache.get(key)
-
-      if (cached) {
-        playBlob(cached, settings.volume, onEnd)
-        return
-      }
-
-      // Map pitch from 0.5-1.5 slider to -10..+10 semitones for Cloud TTS
-      const pitchSemitones = (settings.pitch - 1.0) * 20.0
-
-      synthesizeSpeech({
-        baseUrl: getBaseUrl(),
-        text: normalizedText,
-        languageCode: settings.languageCode,
-        gender: settings.gender,
-        speed: settings.rate,
-        pitch: pitchSemitones,
-      })
-        .then((blob) => {
-          cacheSet(key, blob)
+      void (async () => {
+        try {
+          const blob = await fetchAudioBlob(text)
           playBlob(blob, settings.volume, onEnd)
-        })
-        .catch(() => {
+        } catch {
           // TTS failed — fire onEnd after a short delay so app flow isn't stuck
           if (onEnd) {
             silentTimerRef.current = setTimeout(() => {
@@ -203,9 +379,10 @@ export function useVoiceGuide(
               onEnd()
             }, 2000)
           }
-        })
+        }
+      })()
     },
-    [voiceEnabled, settings, stopAudio, playBlob],
+    [voiceEnabled, settings, stopAudio, playBlob, fetchAudioBlob],
   )
 
   const speakFeedback = useCallback(
@@ -235,6 +412,25 @@ export function useVoiceGuide(
     [voiceEnabled, speak],
   )
 
+  const prefetch = useCallback(
+    (texts: string[]) => {
+      if (!voiceEnabled || !texts.length) return
+
+      const uniqueTexts = Array.from(new Set(texts.map((t) => t.trim()).filter(Boolean)))
+
+      void (async () => {
+        for (const text of uniqueTexts) {
+          try {
+            await fetchAudioBlob(text)
+          } catch {
+            // best-effort cache warmup
+          }
+        }
+      })()
+    },
+    [voiceEnabled, fetchAudioBlob],
+  )
+
   const cancel = useCallback(() => {
     if (silentTimerRef.current !== null) {
       clearTimeout(silentTimerRef.current)
@@ -243,5 +439,5 @@ export function useVoiceGuide(
     stopAudio()
   }, [stopAudio])
 
-  return { speak, speakFeedback, cancel }
+  return { speak, speakFeedback, prefetch, cancel }
 }
