@@ -33,7 +33,7 @@ interface PoseIntroOverlayProps {
   onExitSequence?: () => void
   /** Sub-phase within framing: detecting body → getting into pose → countdown to evaluate */
   framingSubPhase?: 'detecting' | 'posing' | 'countdown'
-  /** Indicates active voice-command listening state in results phase */
+  /** Indicates active voice-command listening state */
   voiceListening?: boolean
 }
 
@@ -249,8 +249,8 @@ export default function PoseIntroOverlay({
             >
               {voiceEnabled ? (
                 <>
-                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-                  Voice guide is playing…
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${voiceListening ? 'animate-pulse bg-emerald-400' : 'bg-slate-500'}`} />
+                  {voiceListening ? 'Listening… say begin, next, or exit' : 'Voice guide is playing…'}
                 </>
               ) : (
                 <>

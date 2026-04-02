@@ -55,7 +55,17 @@ export type VoiceAction = 'next' | 'again' | 'exit'
 function matchAction(transcript: string): VoiceAction | null {
   const t = transcript.toLowerCase().trim()
 
-  if (/\bnext\b/.test(t) || /\bcontinue\b/.test(t) || /\bfinish\b/.test(t) || /\bready\b/.test(t) || /\baage\b/.test(t)) {
+  if (
+    /\bnext\b/.test(t) ||
+    /\bcontinue\b/.test(t) ||
+    /\bfinish\b/.test(t) ||
+    /\bready\b/.test(t) ||
+    /\bbegin\b/.test(t) ||
+    /\bstart\b/.test(t) ||
+    /\blet'?s\s*begin\b/.test(t) ||
+    /\baage\b/.test(t) ||
+    /\bshuru\b/.test(t)
+  ) {
     return 'next'
   }
   if (/\bagain\b/.test(t) || /\bretry\b/.test(t) || /\brepeat\b/.test(t) || /\bonce more\b/.test(t) || /\bdobara\b/.test(t) || /\bphir\s*se\b/.test(t)) {

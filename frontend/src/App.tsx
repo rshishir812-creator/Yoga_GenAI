@@ -510,10 +510,17 @@ export default function App() {
   useEffect(() => {
     if (experiencePhase !== 'intro') return
     const desc = POSE_DESCRIPTIONS[expectedPose]
-    if (desc) {
-      speak(desc.introScript)
+    if (!desc) {
+      startIntroVoiceCommands()
+      return
     }
-  }, [experiencePhase, expectedPose, speak])
+
+    speak(desc.introScript, () => {
+      speak('Say begin when you are ready, or say exit to go back.', () => {
+        startIntroVoiceCommands()
+      })
+    })
+  }, [experiencePhase, expectedPose, speak, voiceOn, voiceCommandSupported])
 
   // ── Voice framing prompt when entering 'framing' phase ───────────────────
   useEffect(() => {
@@ -837,8 +844,26 @@ export default function App() {
     })
   }
 
+  function startIntroVoiceCommands() {
+    if (!voiceOn || !voiceCommandSupported) return
+
+    startVoiceCommandListening((action) => {
+      if (action === 'next') {
+        handleIntroNext()
+        return
+      }
+      if (action === 'exit') {
+        if (isInSequence) {
+          handleExitSequence()
+        } else {
+          handleTryAnother()
+        }
+      }
+    })
+  }
+
   useEffect(() => {
-    if (experiencePhase !== 'results') {
+    if (experiencePhase !== 'results' && experiencePhase !== 'intro') {
       stopVoiceCommandListening()
     }
   }, [experiencePhase, stopVoiceCommandListening])
@@ -1268,6 +1293,7 @@ export default function App() {
             sequenceIndex={sequenceIndex}
             sequenceTotalPoses={sequencePoses.length}
             sideNote={sequencePoses[sequenceIndex]?.sideNote}
+            voiceListening={isVoiceCommandListening}
           />
         )}
       </AnimatePresence>
