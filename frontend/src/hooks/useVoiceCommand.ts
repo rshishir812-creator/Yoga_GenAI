@@ -53,7 +53,11 @@ export const speechRecognitionSupported = !!getSpeechRecognition()
 export type VoiceAction = 'next' | 'again' | 'exit'
 
 function matchAction(transcript: string): VoiceAction | null {
-  const t = transcript.toLowerCase().trim()
+  const t = transcript
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s']/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 
   if (
     /\bnext\b/.test(t) ||
@@ -61,8 +65,12 @@ function matchAction(transcript: string): VoiceAction | null {
     /\bfinish\b/.test(t) ||
     /\bready\b/.test(t) ||
     /\bbegin\b/.test(t) ||
+    /\bbegan\b/.test(t) ||
+    /\bbe\s*gain\b/.test(t) ||
     /\bstart\b/.test(t) ||
     /\blet'?s\s*begin\b/.test(t) ||
+    /\blet'?s\s*go\b/.test(t) ||
+    /\bgo\s*ahead\b/.test(t) ||
     /\baage\b/.test(t) ||
     /\bshuru\b/.test(t)
   ) {
