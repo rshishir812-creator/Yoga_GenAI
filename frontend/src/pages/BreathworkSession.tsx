@@ -139,7 +139,7 @@ export default function BreathworkSession({ protocol, onExit }: BreathworkSessio
         </header>
 
         <main className="flex flex-1 flex-col items-center justify-center px-4">
-          <BreathLogo phase={currentPhase} phaseProgress={phaseProgress} logoPath="/Logo.jpeg" />
+          <BreathLogo phase={currentPhase} phaseProgress={phaseProgress} />
 
           <div className="mt-9">
             <BreathPhaseLabel phase={currentPhase} cycle={currentCycle} />
