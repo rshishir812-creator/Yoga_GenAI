@@ -53,11 +53,17 @@ export const speechRecognitionSupported = !!getSpeechRecognition()
 export type VoiceAction = 'next' | 'again' | 'exit'
 
 function matchAction(transcript: string): VoiceAction | null {
-  const t = transcript
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s']/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+  let t: string
+  try {
+    t = transcript
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s']/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  } catch {
+    // Fallback for environments without Unicode property escapes
+    t = transcript.toLowerCase().replace(/[^a-z0-9\s']/g, ' ').replace(/\s+/g, ' ').trim()
+  }
 
   if (
     /\bnext\b/.test(t) ||
@@ -79,7 +85,17 @@ function matchAction(transcript: string): VoiceAction | null {
   if (/\bagain\b/.test(t) || /\bretry\b/.test(t) || /\brepeat\b/.test(t) || /\bonce more\b/.test(t) || /\bdobara\b/.test(t) || /\bphir\s*se\b/.test(t)) {
     return 'again'
   }
-  if (/\bexit\b/.test(t) || /\bstop\b/.test(t) || /\bquit\b/.test(t) || /\bend\b/.test(t) || /\bhome\b/.test(t)) {
+  if (
+    /\bexit\b/.test(t) ||
+    /\bstop\b/.test(t) ||
+    /\bquit\b/.test(t) ||
+    /\bend\b/.test(t) ||
+    /\bhome\b/.test(t) ||
+    /\bback\b/.test(t) ||
+    /\bgo\s*back\b/.test(t) ||
+    /\bcancel\b/.test(t) ||
+    /\bbahar\b/.test(t)
+  ) {
     return 'exit'
   }
 
