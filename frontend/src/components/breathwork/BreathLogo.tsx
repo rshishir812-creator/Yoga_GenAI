@@ -103,7 +103,8 @@ export default function BreathLogo({ phase, phaseProgress }: BreathLogoProps) {
   const direction = phase.animation === 'contract' ? -1 : 1
 
   return (
-    <div className="relative flex items-center justify-center">
+    <div className="relative flex flex-col items-center justify-center gap-4">
+      <div className="relative flex items-center justify-center">
       <div
         className="absolute h-[310px] w-[310px] rounded-full border border-teal-200/30"
         style={{
@@ -173,6 +174,11 @@ export default function BreathLogo({ phase, phaseProgress }: BreathLogoProps) {
           )
         })}
       </div>
+      </div>
+
+      <p className="font-cinzel text-[10px] uppercase tracking-[0.42em] text-white/50 sm:text-xs">
+        OorjaKull
+      </p>
     </div>
   )
 }

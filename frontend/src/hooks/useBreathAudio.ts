@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { BreathworkPhase } from '../api/client'
 
+export type AmbientMode = 'off' | 'rain' | 'ocean' | 'om'
+
 type UseBreathAudioResult = {
   isMuted: boolean
   toggleMute: () => void
+  ambientMode: AmbientMode
+  cycleAmbientMode: () => void
+  setAmbientMode: (mode: AmbientMode) => void
   triggerPhaseAudio: (phase: BreathworkPhase) => Promise<void>
 }
 
@@ -35,22 +40,36 @@ function createNoiseBuffer(ctx: AudioContext, seconds: number): AudioBuffer {
   return buffer
 }
 
+const AMBIENT_MODES: AmbientMode[] = ['off', 'rain', 'ocean', 'om']
+
 export function useBreathAudio(): UseBreathAudioResult {
   const [isMuted, setIsMuted] = useState(false)
+  const [ambientMode, setAmbientModeState] = useState<AmbientMode>('off')
 
   const contextRef = useRef<AudioContext | null>(null)
   const masterGainRef = useRef<GainNode | null>(null)
-  const activeNodesRef = useRef<ActiveAudioNode[]>([])
+  const phaseNodesRef = useRef<ActiveAudioNode[]>([])
+  const ambientStopRef = useRef<(() => void) | null>(null)
 
-  const stopActiveNodes = useCallback(() => {
-    for (const node of activeNodesRef.current) {
+  const stopPhaseNodes = useCallback(() => {
+    for (const node of phaseNodesRef.current) {
       try {
         node.stop()
       } catch {
         // no-op
       }
     }
-    activeNodesRef.current = []
+    phaseNodesRef.current = []
+  }, [])
+
+  const stopAmbient = useCallback(() => {
+    if (!ambientStopRef.current) return
+    try {
+      ambientStopRef.current()
+    } catch {
+      // no-op
+    }
+    ambientStopRef.current = null
   }, [])
 
   const ensureAudioContext = useCallback(async () => {
@@ -80,7 +99,7 @@ export function useBreathAudio(): UseBreathAudioResult {
     const now = ctx.currentTime
     const duration = Math.max(0.2, phase.duration_sec)
 
-    stopActiveNodes()
+    stopPhaseNodes()
 
     if (isExpandPhase(phase)) {
       const osc = ctx.createOscillator()
@@ -107,7 +126,7 @@ export function useBreathAudio(): UseBreathAudioResult {
       osc.start(now)
       osc.stop(now + duration + 0.02)
 
-      activeNodesRef.current.push({
+      phaseNodesRef.current.push({
         stop: () => {
           osc.stop()
           osc.disconnect()
@@ -147,7 +166,7 @@ export function useBreathAudio(): UseBreathAudioResult {
       baseOsc.stop(now + Math.min(4.2, duration + 0.2))
       harmonicOsc.stop(now + Math.min(4.2, duration + 0.2))
 
-      activeNodesRef.current.push({
+      phaseNodesRef.current.push({
         stop: () => {
           baseOsc.stop()
           harmonicOsc.stop()
@@ -194,7 +213,7 @@ export function useBreathAudio(): UseBreathAudioResult {
     osc.stop(now + duration + 0.02)
     noiseSource.stop(now + duration + 0.02)
 
-    activeNodesRef.current.push({
+    phaseNodesRef.current.push({
       stop: () => {
         osc.stop()
         noiseSource.stop()
@@ -205,7 +224,199 @@ export function useBreathAudio(): UseBreathAudioResult {
         noiseGain.disconnect()
       },
     })
-  }, [ensureAudioContext, stopActiveNodes])
+  }, [ensureAudioContext, stopPhaseNodes])
+
+  const startAmbient = useCallback((ctx: AudioContext, master: GainNode, mode: AmbientMode) => {
+    stopAmbient()
+    if (mode === 'off') return
+
+    const now = ctx.currentTime
+
+    if (mode === 'rain') {
+      const rainNoise = ctx.createBufferSource()
+      rainNoise.buffer = createNoiseBuffer(ctx, 4.5)
+      rainNoise.loop = true
+
+      const highpass = ctx.createBiquadFilter()
+      highpass.type = 'highpass'
+      highpass.frequency.setValueAtTime(900, now)
+
+      const lowpass = ctx.createBiquadFilter()
+      lowpass.type = 'lowpass'
+      lowpass.frequency.setValueAtTime(4200, now)
+
+      const gain = ctx.createGain()
+      gain.gain.setValueAtTime(0.0001, now)
+      gain.gain.exponentialRampToValueAtTime(0.11, now + 0.7)
+
+      rainNoise.connect(highpass)
+      highpass.connect(lowpass)
+      lowpass.connect(gain)
+      gain.connect(master)
+      rainNoise.start(now)
+
+      ambientStopRef.current = () => {
+        gain.gain.cancelScheduledValues(ctx.currentTime)
+        gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.08)
+        window.setTimeout(() => {
+          try {
+            rainNoise.stop()
+          } catch {
+            // no-op
+          }
+          rainNoise.disconnect()
+          highpass.disconnect()
+          lowpass.disconnect()
+          gain.disconnect()
+        }, 180)
+      }
+      return
+    }
+
+    if (mode === 'ocean') {
+      const surfNoise = ctx.createBufferSource()
+      surfNoise.buffer = createNoiseBuffer(ctx, 6)
+      surfNoise.loop = true
+
+      const bandpass = ctx.createBiquadFilter()
+      bandpass.type = 'bandpass'
+      bandpass.frequency.setValueAtTime(360, now)
+      bandpass.Q.value = 0.8
+
+      const swell = ctx.createGain()
+      const overall = ctx.createGain()
+      overall.gain.setValueAtTime(0.0001, now)
+      overall.gain.exponentialRampToValueAtTime(0.14, now + 0.9)
+
+      const lfo = ctx.createOscillator()
+      const lfoGain = ctx.createGain()
+      lfo.type = 'sine'
+      lfo.frequency.setValueAtTime(0.09, now)
+      lfoGain.gain.setValueAtTime(0.05, now)
+
+      swell.gain.setValueAtTime(0.09, now)
+
+      lfo.connect(lfoGain)
+      lfoGain.connect(swell.gain)
+
+      surfNoise.connect(bandpass)
+      bandpass.connect(swell)
+      swell.connect(overall)
+      overall.connect(master)
+
+      surfNoise.start(now)
+      lfo.start(now)
+
+      ambientStopRef.current = () => {
+        overall.gain.cancelScheduledValues(ctx.currentTime)
+        overall.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.1)
+        window.setTimeout(() => {
+          try {
+            surfNoise.stop()
+          } catch {
+            // no-op
+          }
+          try {
+            lfo.stop()
+          } catch {
+            // no-op
+          }
+          surfNoise.disconnect()
+          bandpass.disconnect()
+          swell.disconnect()
+          overall.disconnect()
+          lfo.disconnect()
+          lfoGain.disconnect()
+        }, 210)
+      }
+      return
+    }
+
+    const fundamental = ctx.createOscillator()
+    const harmonic = ctx.createOscillator()
+    const beat = ctx.createOscillator()
+    const fundamentalGain = ctx.createGain()
+    const harmonicGain = ctx.createGain()
+    const beatGain = ctx.createGain()
+    const lowpass = ctx.createBiquadFilter()
+
+    fundamental.type = 'sine'
+    harmonic.type = 'triangle'
+    beat.type = 'sine'
+
+    fundamental.frequency.setValueAtTime(136.1, now)
+    harmonic.frequency.setValueAtTime(272.2, now)
+    beat.frequency.setValueAtTime(0.11, now)
+
+    fundamentalGain.gain.setValueAtTime(0.0001, now)
+    fundamentalGain.gain.exponentialRampToValueAtTime(0.09, now + 1)
+
+    harmonicGain.gain.setValueAtTime(0.0001, now)
+    harmonicGain.gain.exponentialRampToValueAtTime(0.03, now + 1)
+
+    beatGain.gain.setValueAtTime(0.015, now)
+
+    lowpass.type = 'lowpass'
+    lowpass.frequency.setValueAtTime(1200, now)
+
+    beat.connect(beatGain)
+    beatGain.connect(fundamentalGain.gain)
+
+    fundamental.connect(fundamentalGain)
+    harmonic.connect(harmonicGain)
+    fundamentalGain.connect(lowpass)
+    harmonicGain.connect(lowpass)
+    lowpass.connect(master)
+
+    fundamental.start(now)
+    harmonic.start(now)
+    beat.start(now)
+
+    ambientStopRef.current = () => {
+      fundamentalGain.gain.cancelScheduledValues(ctx.currentTime)
+      harmonicGain.gain.cancelScheduledValues(ctx.currentTime)
+      fundamentalGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.12)
+      harmonicGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.12)
+      window.setTimeout(() => {
+        try {
+          fundamental.stop()
+        } catch {
+          // no-op
+        }
+        try {
+          harmonic.stop()
+        } catch {
+          // no-op
+        }
+        try {
+          beat.stop()
+        } catch {
+          // no-op
+        }
+        fundamental.disconnect()
+        harmonic.disconnect()
+        beat.disconnect()
+        beatGain.disconnect()
+        fundamentalGain.disconnect()
+        harmonicGain.disconnect()
+        lowpass.disconnect()
+      }, 230)
+    }
+  }, [stopAmbient])
+
+  useEffect(() => {
+    if (isMuted) {
+      stopAmbient()
+      return
+    }
+
+    void ensureAudioContext()
+      .then((audio) => {
+        if (!audio?.ctx || !audio.master) return
+        startAmbient(audio.ctx, audio.master, ambientMode)
+      })
+      .catch(() => undefined)
+  }, [ambientMode, ensureAudioContext, isMuted, startAmbient, stopAmbient])
 
   const toggleMute = useCallback(() => {
     setIsMuted((prev) => {
@@ -219,9 +430,22 @@ export function useBreathAudio(): UseBreathAudioResult {
     })
   }, [])
 
+  const setAmbientMode = useCallback((mode: AmbientMode) => {
+    setAmbientModeState(mode)
+  }, [])
+
+  const cycleAmbientMode = useCallback(() => {
+    setAmbientModeState((prev) => {
+      const currentIndex = AMBIENT_MODES.indexOf(prev)
+      const nextIndex = (currentIndex + 1) % AMBIENT_MODES.length
+      return AMBIENT_MODES[nextIndex]
+    })
+  }, [])
+
   useEffect(() => {
     return () => {
-      stopActiveNodes()
+      stopPhaseNodes()
+      stopAmbient()
       const ctx = contextRef.current
       if (ctx) {
         void ctx.close().catch(() => undefined)
@@ -229,7 +453,7 @@ export function useBreathAudio(): UseBreathAudioResult {
       contextRef.current = null
       masterGainRef.current = null
     }
-  }, [stopActiveNodes])
+  }, [stopAmbient, stopPhaseNodes])
 
   useEffect(() => {
     const master = masterGainRef.current
@@ -242,6 +466,9 @@ export function useBreathAudio(): UseBreathAudioResult {
   return {
     isMuted,
     toggleMute,
+    ambientMode,
+    cycleAmbientMode,
+    setAmbientMode,
     triggerPhaseAudio,
   }
 }

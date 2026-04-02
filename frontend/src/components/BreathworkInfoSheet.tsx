@@ -8,12 +8,6 @@ interface BreathworkInfoSheetProps {
   onBegin: (protocol: BreathworkProtocol) => void
 }
 
-function effectLabel(label: string, value: 'increase' | 'decrease' | 'steady' | null) {
-  if (value === null) return null
-  const symbol = value === 'increase' ? '↑' : value === 'decrease' ? '↓' : '•'
-  return `${label} ${symbol}`
-}
-
 export default function BreathworkInfoSheet({ protocol, onClose, onBegin }: BreathworkInfoSheetProps) {
   return (
     <AnimatePresence>
@@ -64,6 +58,9 @@ export default function BreathworkInfoSheet({ protocol, onClose, onBegin }: Brea
                 <p className="mt-3 text-sm text-slate-400">
                   <span className="text-slate-200">Origin:</span> {protocol.origin}
                 </p>
+                <p className="mt-2 text-sm text-slate-400">
+                  <span className="text-slate-200">Difficulty:</span> {protocol.difficulty}
+                </p>
                 <div className="mt-4 flex flex-wrap gap-2">
                   {protocol.benefits.map((benefit) => (
                     <span
@@ -73,23 +70,6 @@ export default function BreathworkInfoSheet({ protocol, onClose, onBegin }: Brea
                       {benefit}
                     </span>
                   ))}
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-300">
-                  {effectLabel('HR', protocol.effects.hr) && (
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                      {effectLabel('HR', protocol.effects.hr)}
-                    </span>
-                  )}
-                  {effectLabel('HRV', protocol.effects.hrv) && (
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                      {effectLabel('HRV', protocol.effects.hrv)}
-                    </span>
-                  )}
-                  {effectLabel('Temp', protocol.effects.temperature) && (
-                    <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                      {effectLabel('Temp', protocol.effects.temperature)}
-                    </span>
-                  )}
                 </div>
                 <button
                   type="button"

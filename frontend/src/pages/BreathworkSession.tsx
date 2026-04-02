@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import type { BreathworkProtocol } from '../api/client'
+import AmbientSoundToggle from '../components/breathwork/AmbientSoundToggle'
 import BreathLogo from '../components/breathwork/BreathLogo'
 import BreathPhaseLabel from '../components/breathwork/BreathPhaseLabel'
 import BreathWaveBackground from '../components/breathwork/BreathWaveBackground'
-import HrZoneCard from '../components/breathwork/HrZoneCard'
 import SessionCompleteOverlay from '../components/breathwork/SessionCompleteOverlay'
 import VolumeToggle from '../components/breathwork/VolumeToggle'
 import { useBreathAudio } from '../hooks/useBreathAudio'
@@ -41,34 +41,24 @@ export default function BreathworkSession({ protocol, onExit }: BreathworkSessio
     end,
   } = useBreathingSession({ phases: protocol.phases, cycles: protocol.cycles })
 
-  const { isMuted, toggleMute, triggerPhaseAudio } = useBreathAudio()
+  const { isMuted, toggleMute, ambientMode, cycleAmbientMode, triggerPhaseAudio } = useBreathAudio()
 
   const [sessionStarted, setSessionStarted] = useState(false)
-  const [mockBpm, setMockBpm] = useState(() => 72 + Math.floor(Math.random() * 17))
-  const [temperature, setTemperature] = useState(() => 98.4 + (Math.random() * 0.2 - 0.1))
 
   const phaseTriggerKeyRef = useRef<string>('')
 
-  useEffect(() => {
-    const bpmTimer = window.setInterval(() => {
-      setMockBpm((prev) => {
-        const delta = Math.floor(Math.random() * 7) - 3
-        return Math.max(62, Math.min(104, prev + delta))
-      })
-    }, 8000)
-
-    const tempTimer = window.setInterval(() => {
-      setTemperature((prev) => {
-        const drift = (Math.random() * 0.4 - 0.2)
-        return Math.max(97.8, Math.min(99.1, prev + drift))
-      })
-    }, 15000)
-
-    return () => {
-      window.clearInterval(bpmTimer)
-      window.clearInterval(tempTimer)
+  function vibrateByPhase(phaseLabel: string, animation: string) {
+    if (!('vibrate' in navigator)) return
+    if (animation === 'expand' || /inhale|breathe in/i.test(phaseLabel)) {
+      navigator.vibrate([18, 22, 18])
+      return
     }
-  }, [])
+    if (animation === 'hold' || /hold|retain/i.test(phaseLabel)) {
+      navigator.vibrate([25, 40, 25, 40, 25])
+      return
+    }
+    navigator.vibrate(65)
+  }
 
   useEffect(() => {
     if (!sessionStarted || isComplete) return
@@ -79,9 +69,7 @@ export default function BreathworkSession({ protocol, onExit }: BreathworkSessio
     phaseTriggerKeyRef.current = key
 
     void triggerPhaseAudio(currentPhase)
-    if ('vibrate' in navigator) {
-      navigator.vibrate(12)
-    }
+    vibrateByPhase(currentPhase.label, currentPhase.animation)
   }, [activePhases, currentCycle, currentPhase, isComplete, sessionStarted, triggerPhaseAudio])
 
   const handleStart = async () => {
@@ -121,6 +109,14 @@ export default function BreathworkSession({ protocol, onExit }: BreathworkSessio
         }}
       >
         <header className="flex items-start justify-between px-3 sm:px-5">
+          <button
+            type="button"
+            onClick={handleEndSession}
+            className="inline-flex min-h-10 items-center gap-1 rounded-full border border-red-500/35 bg-red-500/5 px-3 py-2 text-[11px] uppercase tracking-[0.16em] text-red-200 transition hover:bg-red-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+          >
+            End
+          </button>
+
           <div className="flex flex-1 flex-col items-center text-center">
             <p className="text-3xl font-semibold tabular-nums text-white/95 sm:text-4xl">
               {formatTime(elapsedSeconds)}
@@ -131,10 +127,8 @@ export default function BreathworkSession({ protocol, onExit }: BreathworkSessio
           </div>
 
           <div className="flex flex-col items-end gap-2">
+            <AmbientSoundToggle mode={ambientMode} onToggle={cycleAmbientMode} />
             <VolumeToggle isMuted={isMuted} onToggle={toggleMute} />
-            <div className="rounded-full border border-white/15 bg-black/30 px-3 py-1.5 text-xs text-white/80 backdrop-blur-xl">
-              🌡 {temperature.toFixed(1)}°F
-            </div>
           </div>
         </header>
 
@@ -172,16 +166,32 @@ export default function BreathworkSession({ protocol, onExit }: BreathworkSessio
           )}
         </main>
 
-        <footer className="flex items-end justify-between gap-3 px-3 pb-1 sm:px-5">
-          <HrZoneCard bpm={mockBpm} sessionProgress={sessionProgress} />
-
-          <button
-            type="button"
-            onClick={handleEndSession}
-            className="min-h-12 rounded-full border border-red-500/35 bg-red-500/5 px-5 py-3 text-sm font-medium text-red-200 backdrop-blur-xl transition hover:bg-red-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
-          >
-            End Session
-          </button>
+        <footer className="px-3 pb-1 sm:px-5">
+          <div className="rounded-2xl border border-white/10 bg-black/30 p-3 backdrop-blur-xl">
+            <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-white/55">
+              <span>Session Flow</span>
+              <span>{Math.round(sessionProgress * 100)}%</span>
+            </div>
+            <div className="flex gap-1.5">
+              {Array.from({ length: totalCycles }).map((_, index) => {
+                const done = index + 1 < currentCycle || isComplete
+                const active = index + 1 === currentCycle && !isComplete
+                return (
+                  <span
+                    key={`cycle-segment-${index + 1}`}
+                    className="h-2 flex-1 rounded-full"
+                    style={{
+                      background: done
+                        ? 'linear-gradient(90deg, rgba(16,185,129,0.9), rgba(45,212,191,0.9))'
+                        : active
+                          ? 'linear-gradient(90deg, rgba(45,212,191,0.75), rgba(129,140,248,0.75))'
+                          : 'rgba(255,255,255,0.12)',
+                    }}
+                  />
+                )
+              })}
+            </div>
+          </div>
         </footer>
       </div>
 

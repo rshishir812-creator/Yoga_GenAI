@@ -177,6 +177,82 @@ const STATIC_VOICE_PROMPTS_TO_PREFETCH: string[] = [
   'Would you like to try this pose again, or try a different pose? Say again to retry, or say next for another pose.',
 ]
 
+const BREATHWORK_STREAK_STORAGE_KEY = 'oorjakull_breathwork_streak_v1'
+
+type BreathworkStreakState = {
+  currentStreak: number
+  totalSessions: number
+  lastCompletedDate: string | null
+}
+
+function getLocalDateStamp(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function dateFromStamp(stamp: string) {
+  const [year, month, day] = stamp.split('-').map(Number)
+  return new Date(year, (month || 1) - 1, day || 1)
+}
+
+function loadBreathworkStreak(): BreathworkStreakState {
+  if (typeof window === 'undefined') {
+    return { currentStreak: 0, totalSessions: 0, lastCompletedDate: null }
+  }
+
+  try {
+    const raw = window.localStorage.getItem(BREATHWORK_STREAK_STORAGE_KEY)
+    if (!raw) {
+      return { currentStreak: 0, totalSessions: 0, lastCompletedDate: null }
+    }
+
+    const parsed = JSON.parse(raw) as BreathworkStreakState
+    return {
+      currentStreak: Number.isFinite(parsed.currentStreak) ? Math.max(0, parsed.currentStreak) : 0,
+      totalSessions: Number.isFinite(parsed.totalSessions) ? Math.max(0, parsed.totalSessions) : 0,
+      lastCompletedDate: parsed.lastCompletedDate || null,
+    }
+  } catch {
+    return { currentStreak: 0, totalSessions: 0, lastCompletedDate: null }
+  }
+}
+
+function nextStreakState(previous: BreathworkStreakState, completedAt: Date): BreathworkStreakState {
+  const today = getLocalDateStamp(completedAt)
+  const totalSessions = previous.totalSessions + 1
+
+  if (!previous.lastCompletedDate) {
+    return { currentStreak: 1, totalSessions, lastCompletedDate: today }
+  }
+
+  if (previous.lastCompletedDate === today) {
+    return { ...previous, totalSessions }
+  }
+
+  const lastDate = dateFromStamp(previous.lastCompletedDate)
+  const lastStamp = getLocalDateStamp(lastDate)
+  if (lastStamp === today) {
+    return { ...previous, totalSessions, lastCompletedDate: today }
+  }
+
+  const diffDays = Math.round((completedAt.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays === 1) {
+    return {
+      currentStreak: previous.currentStreak + 1,
+      totalSessions,
+      lastCompletedDate: today,
+    }
+  }
+
+  return {
+    currentStreak: 1,
+    totalSessions,
+    lastCompletedDate: today,
+  }
+}
+
 export default function App() {
   const safety = useSafety()
   const [experiencePhase, setExperiencePhase] = useState<ExperiencePhase>('welcome')
@@ -211,6 +287,7 @@ export default function App() {
   const [sequenceResults, setSequenceResults] = useState<Array<{ pose: string; score: number | null; sideNote?: string }>>([])
   const [selectedBreathworkProtocol, setSelectedBreathworkProtocol] = useState<BreathworkProtocol | null>(null)
   const [breathworkToast, setBreathworkToast] = useState<string | null>(null)
+  const [breathworkStreak, setBreathworkStreak] = useState<BreathworkStreakState>(() => loadBreathworkStreak())
 
   const { isPortraitMobile } = useOrientation()
 
@@ -569,11 +646,18 @@ export default function App() {
   }
 
   function handleExitBreathworkSession(toastMessage?: string) {
+    if (toastMessage === 'Session Complete') {
+      setBreathworkStreak((prev) => nextStreakState(prev, new Date()))
+    }
     setSelectedBreathworkProtocol(null)
     setBreathworkToast(toastMessage ?? null)
     setActiveSection('breathwork')
     setExperiencePhase('landing')
   }
+
+  useEffect(() => {
+    window.localStorage.setItem(BREATHWORK_STREAK_STORAGE_KEY, JSON.stringify(breathworkStreak))
+  }, [breathworkStreak])
 
   function handleSelectPose(pose: string) {
     stopVoiceCommandListening()
@@ -1147,6 +1231,8 @@ export default function App() {
                 baseUrl={baseUrl}
                 onBackHome={handleBackToHome}
                 onStartSession={handleStartBreathwork}
+                streakDays={breathworkStreak.currentStreak}
+                totalSessions={breathworkStreak.totalSessions}
                 toastMessage={breathworkToast}
                 onToastDone={() => setBreathworkToast(null)}
               />
